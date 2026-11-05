@@ -17,7 +17,6 @@ include { TRANSCRIPTOME                  } from '../subworkflows/local/transcrip
 include { PREDICTED_PROTEOME             } from '../subworkflows/local/predicted_proteome'
 include { PROTEOMICS                     } from '../subworkflows/local/proteomics'
 include { MULTISAMPLE_ANALYSIS           } from '../subworkflows/local/multisample_analysis'
-include { paramsSummaryMap               } from 'plugin/nf-schema'
 include { paramsSummaryMultiqc           } from '../subworkflows/nf-core/utils_nfcore_pipeline'
 include { softwareVersionsToYAML         } from '../subworkflows/nf-core/utils_nfcore_pipeline'
 include { logColours                     } from '../subworkflows/nf-core/utils_nfcore_pipeline'

@@ -8,11 +8,7 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-include { UTILS_NFSCHEMA_PLUGIN     } from '../../nf-core/utils_nfschema_plugin'
-include { paramsSummaryMap          } from 'plugin/nf-schema'
-include { samplesheetToList         } from 'plugin/nf-schema'
-include { paramsHelp                } from 'plugin/nf-schema'
-include { completionEmail           } from '../../nf-core/utils_nfcore_pipeline'
+include { completionEmail          } from '../../nf-core/utils_nfcore_pipeline'
 include { completionSummary         } from '../../nf-core/utils_nfcore_pipeline'
 include { imNotification            } from '../../nf-core/utils_nfcore_pipeline'
 include { UTILS_NFCORE_PIPELINE     } from '../../nf-core/utils_nfcore_pipeline'
@@ -52,21 +48,12 @@ workflow PIPELINE_INITIALISATION {
     )
 
     //
-    // Validate parameters and generate parameter summary to stdout
+    // Help message (the nf-schema plugin that used to print this was removed)
     //
-    command = "nextflow run ${workflow.manifest.name} -profile <docker/singularity/.../institute> --input samplesheet.csv --outdir <OUTDIR>"
-
-    UTILS_NFSCHEMA_PLUGIN (
-        workflow,
-        validate_params,
-        null,
-        help,
-        help_full,
-        show_hidden,
-        "",
-        "",
-        command
-    )
+    if (help || help_full) {
+        log.info "nextflow run ${workflow.manifest.name} --input samplesheet.csv --outdir <OUTDIR>  (see README.md for all parameters)"
+        exit 0
+    }
 
     //
     // Check config provided to the pipeline
@@ -102,7 +89,7 @@ workflow PIPELINE_INITIALISATION {
     }
 
     if (input_type == "sample_path") {
-        def samplesheet_list = samplesheetToList(sanitized_input, "${projectDir}/assets/schema_input.json")
+        def samplesheet_list = readSamplesheet(sanitized_input)
         // Expected structure: [meta, sample_path] where meta contains: sample_name, condition, sample_type, mass_spec_type
 
         def rna_samples = samplesheet_list.findAll { row ->
@@ -264,7 +251,7 @@ workflow PIPELINE_INITIALISATION {
 
     } else if (sanitized_input) {
         // For FASTQ input, process as before but store in combined array
-        combined_channel_data = samplesheetToList(sanitized_input, "${projectDir}/assets/schema_input.json")
+        combined_channel_data = readSamplesheet(sanitized_input)
             .collect { meta, fastq_1, fastq_2 ->
                 if (!fastq_2) {
                     return [ meta.id, meta + [ single_end:true ], [ fastq_1 ] ]
@@ -308,7 +295,21 @@ workflow PIPELINE_COMPLETION {
     hook_url        //  string: hook URL for notifications
 
     main:
-    summary_params = paramsSummaryMap(workflow, parameters_schema: "nextflow_schema.json")
+    // Parameter summary for the completion email / notification (nf-schema's paramsSummaryMap was removed)
+    summary_params = [
+        'Core Nextflow options': [
+            runName    : workflow.runName,
+            launchDir  : workflow.launchDir.toString(),
+            workDir    : workflow.workDir.toString(),
+            projectDir : workflow.projectDir.toString(),
+            userName   : workflow.userName,
+            profile    : workflow.profile,
+        ],
+        'Input/output options': [
+            input  : params.input,
+            outdir : params.outdir,
+        ],
+    ]
 
     //
     // Completion email and summary
@@ -346,8 +347,9 @@ workflow PIPELINE_COMPLETION {
 // Sanitize samplesheet to handle Excel-created files (cleanup Windows line endings (\r) and BOM chars that get populated)
 //
 def sanitizeSamplesheet(input_file) {
-    def file = new File(input_file)
-    def content = file.getText('UTF-8')
+    // Nextflow file() reads local paths and s3://, http(s):// ... (java.io.File could only read local paths)
+    def original = file(input_file).getText('UTF-8')
+    def content = original
 
     def has_bom = content.startsWith('\uFEFF')
     def has_windows_endings = content.contains('\r')
@@ -359,22 +361,77 @@ def sanitizeSamplesheet(input_file) {
     content = content.replaceAll('\r\n', '\n')  // Remove Windows line endings (\r\n -> \n)
     content = content.replaceAll('\r', '\n')    // Remove any remaining carriage returns
 
-    // If the file needed any sanitization, write to new file
-    if (has_bom || has_windows_endings || content != file.getText('UTF-8')) {
+    // If the file needed any sanitization, write to a new LOCAL temp file (never next to the input, which may be on S3)
+    if (content != original) {
         def reasons = []
         if (has_bom) reasons << "BOM"
         if (has_windows_endings) reasons << "Windows line endings"
-        if (content != file.getText('UTF-8') && !has_bom && !has_windows_endings) reasons << "sample name underscores"
 
         log.info "Sanitizing samplesheet: ${reasons.join(', ')}"
 
-        def sanitized_file = new File("${input_file}.sanitized")
+        def sanitized_file = File.createTempFile('samplesheet_', '.sanitized.csv')
         sanitized_file.write(content, 'UTF-8')
         log.info "Sanitized samplesheet created at: ${sanitized_file}"
         return sanitized_file.toString()
     }
 
     return input_file
+}
+
+//
+// Split one CSV line into trimmed fields (handles "quoted,fields")
+//
+def parseCsvLine(String line) {
+    return line.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/, -1).collect { it.trim().replaceAll(/^"|"$/, '') }
+}
+
+//
+// Read the samplesheet into a list of [meta, sample_path] (replaces nf-schema samplesheetToList, which needed a plugin).
+// Same checks as assets/schema_input.json: required columns, no spaces, file extension, sample_type RNA|protein.
+//
+def readSamplesheet(input_file) {
+    def lines = file(input_file).getText('UTF-8').readLines().findAll { it.trim() }
+    if (lines.size() < 2) {
+        error "ERROR: samplesheet '${input_file}' has no samples."
+    }
+    def header = parseCsvLine(lines[0])
+    def required = ['sample_name', 'sample_path', 'condition', 'sample_type']
+    def missing = required.findAll { !(it in header) }
+    if (missing) {
+        error "ERROR: samplesheet is missing required column(s): ${missing.join(', ')}. Required: ${required.join(', ')}."
+    }
+    def ext_pattern = ~/(?i).*\.(bam|fastq|fastq\.gz|fq|fq\.gz|raw|mzml|fasta)(\?\S*)?$/
+    def result = []
+    lines.drop(1).eachWithIndex { line, i ->
+        def cols = parseCsvLine(line)
+        def row = [:]
+        header.eachWithIndex { h, j -> row[h] = j < cols.size() ? cols[j] : '' }
+        def where = "samplesheet row ${i + 2} (${row.sample_name ?: 'no sample_name'})"
+        required.each { c ->
+            if (!row[c]) error "ERROR: ${where}: '${c}' is required."
+        }
+        ['sample_name', 'sample_path', 'condition'].each { c ->
+            if (row[c] =~ /\s/) error "ERROR: ${where}: '${c}' must not contain spaces."
+        }
+        if (!(row.sample_type.toLowerCase() in ['rna', 'protein'])) {
+            error "ERROR: ${where}: sample_type must be 'RNA' or 'protein', not '${row.sample_type}'."
+        }
+        if (!(row.sample_path ==~ ext_pattern)) {
+            error "ERROR: ${where}: sample_path must end in .bam, .fastq(.gz), .fq(.gz), .raw, .mzML or .fasta."
+        }
+        def mass_spec = row.mass_spec_type ?: ''
+        if (mass_spec && !(mass_spec.toLowerCase() in ['dda', 'dia', 'none'])) {
+            error "ERROR: ${where}: mass_spec_type must be DDA, DIA, none or empty, not '${mass_spec}'."
+        }
+        def meta = [
+            sample_name : row.sample_name,
+            condition   : row.condition,
+            sample_type : row.sample_type,
+        ]
+        if (mass_spec) meta.mass_spec_type = mass_spec
+        result << [meta, row.sample_path]
+    }
+    return result
 }
 
 //
@@ -477,8 +534,7 @@ def validateInputSamplesheet(input) {
 // Detect input type based on samplesheet headers
 //
 def detectInputType(input_file) {
-    def file = new File(input_file)
-    def firstLine = file.readLines()[0]
+    def firstLine = file(input_file).getText('UTF-8').readLines()[0]
 
     if (firstLine.contains("sample_path") && firstLine.contains("condition")) {
         return "sample_path"
