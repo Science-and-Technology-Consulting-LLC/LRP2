@@ -16,8 +16,6 @@
                 "input": {
                     "type": "string",
                     "format": "file-path",
-                    "exists": true,
-                    "schema": "assets/schema_input.json",
                     "mimetype": "text/csv",
                     "pattern": "^\\S+\\.csv$",
                     "description": "Path to comma-separated file containing information about the samples in the experiment.",
@@ -149,7 +147,6 @@
                 "isocall_config": {
                     "type": "string",
                     "format": "file-path",
-                    "default": "${projectDir}/bin/isocall_config.toml",
                     "description": "Path to IsoCall configuration TOML file.",
                     "help_text": "Configuration file for IsoCall parameters. Uses default config if not specified.",
                     "fa_icon": "fas fa-file-code"

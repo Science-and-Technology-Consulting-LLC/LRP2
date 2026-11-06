@@ -259,7 +259,7 @@ workflow LRP2 {
         // SUBWORKFLOW: Run PacBio IsoCall analysis
         //
         // IsoCall requires config TOML and gzipped GTF reference for ISOCALL_PREP
-        ch_isocall_config = channel.value(file(params.isocall_config))
+        ch_isocall_config = channel.value(file(params.isocall_config ?: "${projectDir}/bin/isocall_config.toml"))
 
         // Declare channels for GTF and counts that will be used by TRANSCRIPTOME
         // These will be populated either from PACBIO_ISOCALL or from external files
@@ -329,9 +329,9 @@ workflow LRP2 {
             ch_gtf,
             ch_fasta,
             file(sample_metadata_file),
-            file(params.filter_script),
-            file(params.hashlib_script),
-            file(params.generate_hashids_script)
+            file(params.filter_script ?: "${projectDir}/bin/02_filter_sqanti_transcripts.R"),
+            file(params.hashlib_script ?: "${projectDir}/bin/hashlib_id_generator.py"),
+            file(params.generate_hashids_script ?: "${projectDir}/bin/00_generate_hashids.R")
         )
         ch_versions = ch_versions.mix(TRANSCRIPTOME.out.versions.ifEmpty([]))
 
@@ -347,9 +347,9 @@ workflow LRP2 {
 
         // Determine species-specific CPAT files
         def hexamer_file = params.species == 'human' ?
-            file(params.human_hexamer) : file(params.mouse_hexamer)
+            file(params.human_hexamer ?: "${projectDir}/assets/external_data/Human_Hexamer.tsv") : file(params.mouse_hexamer ?: "${projectDir}/assets/external_data/Mouse_Hexamer.tsv")
         def logit_model = params.species == 'human' ?
-            file(params.human_logit_model) : file(params.mouse_logit_model)
+            file(params.human_logit_model ?: "${projectDir}/assets/external_data/Human_logitModel.RData") : file(params.mouse_logit_model ?: "${projectDir}/assets/external_data/Mouse_logitModel.RData")
 
         PREDICTED_PROTEOME (
             TRANSCRIPTOME.out.corrected_fasta_filtered
@@ -362,9 +362,9 @@ workflow LRP2 {
             ch_gtf,
             hexamer_file,
             logit_model,
-            file(params.filter_cpat_script),
-            file(params.sqanti_protein_script),
-            file(params.protein_class_script)
+            file(params.filter_cpat_script ?: "${projectDir}/bin/03_filter_cpat.R"),
+            file(params.sqanti_protein_script ?: "${projectDir}/bin/04_sqanti3_protein.py"),
+            file(params.protein_class_script ?: "${projectDir}/bin/04_protein_classification.R")
         )
         ch_versions = ch_versions.mix(PREDICTED_PROTEOME.out.versions.ifEmpty([]))
     }
@@ -740,9 +740,9 @@ workflow LRP2 {
              ch_transcripts,
              ch_orfs,
              rna_metadata_file,
-             file(params.lr_leafcutter_script),
-             file(params.leafcutter_ds_script),
-             file(params.multisample_script),
+             file(params.lr_leafcutter_script ?: "${projectDir}/bin/05_lr_leafcutter.R"),
+             file(params.leafcutter_ds_script ?: "${projectDir}/bin/leafcutter_ds.py"),
+             file(params.multisample_script ?: "${projectDir}/bin/05_multisample_analysis.R"),
              params.min_samples_per_intron,
              params.min_samples_per_group,
              params.min_usage_ratio,
