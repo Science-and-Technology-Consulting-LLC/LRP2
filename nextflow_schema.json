@@ -670,7 +670,7 @@
                 },
                 "image_tag": {
                     "type": "string",
-                    "default": "REPLACE_WITH_COMMIT_SHA",
+                    "default": "cf6f9d3209eef1a31959c52471b71ae43de08624",
                     "description": "Commit SHA of the image build to use. Never latest."
                 }
             }
