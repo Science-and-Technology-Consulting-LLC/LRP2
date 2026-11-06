@@ -1,0 +1,32 @@
+name: lrp2_lite
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  # R 4.3.3 with Bioconductor 3.18: as in the jtllab/lrp2-lite:1.4 image that ran before (Biostrings and GenomicFeatures: the patch versions bioconda has)
+  - r-base=4.3.3
+  - bioconductor-rtracklayer=1.62.0
+  - bioconductor-biostrings=2.70.1
+  - bioconductor-genomicranges=1.54.1
+  - bioconductor-genomicfeatures=1.54.1
+  - bioconductor-edger=4.0.16
+  - bioconductor-drimseq=1.30.0
+  - bioconductor-biocparallel=1.36.0
+  - r-tidyverse=2.0.0
+  - r-data.table=1.14.10
+  - r-magrittr=2.0.3
+  - r-optparse=1.7.5
+  - r-igraph=1.6.0
+  - r-matrixstats=1.2.0
+  - r-viridis=0.6.5
+  - r-patchwork=1.3.2
+  # Python for hashlib_id_generator.py and 15_accession_mapping.py
+  - python=3.12
+  - numpy=1.26.4
+  - pandas=2.2.3
+  - scipy=1.11.4
+  - biopython=1.81
+  # documentation (docs/ is built with Sphinx)
+  - sphinx>=7.2.6
+  - sphinx-rtd-theme
+  - myst-parser
