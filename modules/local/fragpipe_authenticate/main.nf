@@ -23,7 +23,7 @@
 process FRAGPIPE_AUTHENTICATE {
     tag "FragPipe setup"
     label 'process_single'
-    storeDir "${params.fragpipe_tools_dir}"
+    storeDir "${params.fragpipe_tools_dir ?: "${workflow.workDir}/fragpipe_tools"}"
 
     input:
     val first_name      // Can be null for interactive mode
