@@ -1,9 +1,0 @@
-name: sqanti_protein_classification
-channels:
-  - conda-forge
-  - bioconda
-  - defaults
-dependencies:
-  - bioconda::sqanti3=5.5.4
-  - python=3.11
-  - bioconda::bx-python

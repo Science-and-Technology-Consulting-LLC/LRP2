@@ -1,7 +1,0 @@
-name: validate_transcript_ids
-channels:
-  - conda-forge
-  - bioconda
-  - defaults
-dependencies:
-  - coreutils=9.1

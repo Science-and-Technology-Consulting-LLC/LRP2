@@ -1,7 +1,0 @@
-name: cpat_orf
-channels:
-  - conda-forge
-  - bioconda
-  - defaults
-dependencies:
-  - bioconda::cpat=3.0.4

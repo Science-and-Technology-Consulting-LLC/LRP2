@@ -1,6 +1,0 @@
-name: isocall_profile
-channels:
-  - conda-forge
-  - bioconda
-dependencies:
-  - bioconda::isocall=0.14.0

@@ -1,288 +1,355 @@
 #!/usr/bin/env nextflow
 /*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    sheynkmanlab/lrp2
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    Github : https://github.com/sheynkmanlab/lrp2
-----------------------------------------------------------------------------------------
-*/
+ * LRP2: long-read proteogenomics
+ *
+ * main.nf reads the sample sheet, builds the channels and calls the modules.
+ * Each module is one process in one container (container/<name>/), so nothing is read from projectDir.
+ *
+ *   S1  PacBio Isocall        pbmm2 align, Isocall profile / prep / merge / call
+ *   S2  Transcriptome         SQANTI3 QC, hash ids, filter
+ *   S3  Predicted proteome    CPAT, filter CPAT, SQANTI3 protein, protein classification
+ *   S4  Multisample           LeafCutter, edgeR / DRIMSeq (one comparison per pair of conditions)
+ *
+ * Modes (chosen by which parameters are given):
+ *   multisample only : --S4_multisample_metadata --S4_custom_gtf --S4_custom_counts --S4_custom_orf_counts
+ *   skip Isocall     : --S2_custom_gtf --S2_custom_counts   (non-PacBio data)
+ */
+
+include { PBMM2_ALIGN as ISOCALL_ALIGN                                  } from './modules/pbmm2/pbmm2_align'
+include { ISOCALL_PROFILE                                               } from './modules/isocall/isocall_profile'
+include { ISOCALL_PREP                                                  } from './modules/isocall/isocall_prep'
+include { ISOCALL_MERGE                                                 } from './modules/isocall/isocall_merge'
+include { ISOCALL_CALL                                                  } from './modules/isocall/isocall_call'
+include { GUNZIP as GUNZIP_GTF                                          } from './modules/ubuntu/gunzip'
+include { GUNZIP as GUNZIP_FASTA                                        } from './modules/ubuntu/gunzip'
+include { GZIP as GZIP_GTF                                              } from './modules/ubuntu/gzip'
+include { SANITIZE_PAR_IDS                                              } from './modules/lrp2_lite/sanitize_par_ids'
+include { SANITIZE_TRANSCRIPT_IDS as SANITIZE_TRANSCRIPT_IDS_S2_GTF     } from './modules/ubuntu/sanitize_transcript_ids'
+include { SANITIZE_TRANSCRIPT_IDS as SANITIZE_TRANSCRIPT_IDS_S2_COUNTS  } from './modules/ubuntu/sanitize_transcript_ids'
+include { VALIDATE_TRANSCRIPT_IDS as VALIDATE_TRANSCRIPT_IDS_S2         } from './modules/ubuntu/validate_transcript_ids'
+include { SQANTI_QC                                                     } from './modules/sqanti3/sqanti_qc'
+include { GENERATE_HASHIDS                                              } from './modules/lrp2_lite/generate_hashids'
+include { FILTER_TRANSCRIPTOME                                          } from './modules/lrp2_lite/filter_transcriptome'
+include { CPAT_ORF                                                      } from './modules/cpat/cpat_orf'
+include { FILTER_CPAT                                                   } from './modules/lrp2_lite/filter_cpat'
+include { SQANTI_PROTEIN                                                } from './modules/sqanti3/sqanti_protein'
+include { PROTEIN_CLASSIFICATION                                        } from './modules/lrp2_lite/protein_classification'
+include { LEAFCUTTER_LONGREAD                                           } from './modules/leafcutter_longread/leafcutter_longread'
+include { DIFFERENTIAL_EXPRESSION                                       } from './modules/lrp2_lite/differential_expression'
 
 /*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    IMPORT FUNCTIONS / MODULES / SUBWORKFLOWS / WORKFLOWS
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
-
-include { LRP2  } from './workflows/lrp2'
-include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nfcore_lrp2_pipeline'
-include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_lrp2_pipeline'
-include { getGenomeAttribute      } from './subworkflows/local/utils_nfcore_lrp2_pipeline'
-include { logColours              } from './subworkflows/nf-core/utils_nfcore_pipeline'
-
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    GENOME PARAMETER VALUES
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
-
-// NOTE: Reference GTF and FASTA are auto-set from --genome via gencode config
-// Advanced users can use --local_reference_gtf and --local_reference_fasta (but NOT with --genome)
-
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    NAMED WORKFLOWS FOR PIPELINE
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
-
-//
-// WORKFLOW: Run main analysis pipeline depending on type of input
-//
-workflow SHEYNKMANLAB_LRP2 {
-
-    take:
-    samplesheet         // channel: combined samplesheet with both RNA and protein samples
-
-    main:
-
-    //
-    // WORKFLOW: Run pipeline
-    //
-    LRP2 (
-        samplesheet
-    )
-    emit:
-    versions = LRP2.out.versions
+ * Sample sheet: one CSV line to fields (handles "quoted,fields")
+ */
+def parseCsvLine(String line) {
+    return line.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/, -1).collect { it.trim().replaceAll(/^"|"$/, '') }
 }
+
 /*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    RUN MAIN WORKFLOW
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
+ * Sample sheet text without a byte order mark or Windows line endings (Excel adds them).
+ * Nextflow file() reads local paths and s3://, so the sheet can sit in a bucket.
+ */
+def sampleSheetText(input_file) {
+    return file(input_file).getText('UTF-8')
+        .replaceAll('^﻿', '')
+        .replaceAll('\r\n', '\n')
+        .replaceAll('\r', '\n')
+}
+
+/*
+ * Sample sheet to a list of [meta, sample_path]. Required columns: sample_name, sample_path, condition, sample_type.
+ */
+def readSamplesheet(input_file) {
+    def lines = sampleSheetText(input_file).readLines().findAll { it.trim() }
+    if (lines.size() < 2) {
+        error "ERROR: samplesheet '${input_file}' has no samples."
+    }
+    def header = parseCsvLine(lines[0])
+    def required = ['sample_name', 'sample_path', 'condition', 'sample_type']
+    def missing = required.findAll { !(it in header) }
+    if (missing) {
+        error "ERROR: samplesheet is missing required column(s): ${missing.join(', ')}. Required: ${required.join(', ')}."
+    }
+    def ext_pattern = ~/(?i).*\.(bam|fastq|fastq\.gz|fq|fq\.gz|raw|mzml|fasta)(\?\S*)?$/
+    def result = []
+    lines.drop(1).eachWithIndex { line, i ->
+        def cols = parseCsvLine(line)
+        def row = [:]
+        header.eachWithIndex { h, j -> row[h] = j < cols.size() ? cols[j] : '' }
+        def where = "samplesheet row ${i + 2} (${row.sample_name ?: 'no sample_name'})"
+        required.each { c ->
+            if (!row[c]) error "ERROR: ${where}: '${c}' is required."
+        }
+        ['sample_name', 'sample_path', 'condition'].each { c ->
+            if (row[c] =~ /\s/) error "ERROR: ${where}: '${c}' must not contain spaces."
+        }
+        if (!(row.sample_type.toLowerCase() in ['rna', 'protein'])) {
+            error "ERROR: ${where}: sample_type must be 'RNA' or 'protein', not '${row.sample_type}'."
+        }
+        if (!(row.sample_path ==~ ext_pattern)) {
+            error "ERROR: ${where}: sample_path must end in .bam, .fastq(.gz), .fq(.gz), .raw, .mzML or .fasta."
+        }
+        result << [[sample_name: row.sample_name, condition: row.condition, sample_type: row.sample_type], row.sample_path]
+    }
+    return result
+}
+
+/*
+ * Samples per condition from a metadata table (columns name|sample_name and group|condition).
+ */
+def samplesPerCondition(String metadata_text) {
+    def lines = metadata_text.readLines().findAll { it.trim() }
+    def header = parseCsvLine(lines[0])
+    def group_idx = header.indexOf('group') >= 0 ? header.indexOf('group') : header.indexOf('condition')
+    def name_idx  = header.indexOf('name')  >= 0 ? header.indexOf('name')  : header.indexOf('sample_name')
+    def type_idx  = header.indexOf('sample_type')
+    def result = [:].withDefault { [] }
+    lines.drop(1).each { line ->
+        def cols = parseCsvLine(line)
+        if (cols.size() > group_idx && (type_idx < 0 || cols[type_idx].toLowerCase() == 'rna')) {
+            result[cols[group_idx]] << cols[name_idx]
+        }
+    }
+    return result
+}
 
 workflow {
 
     main:
-    //
-    // Auto-detect multisample-only mode based on parameter presence
-    //
-    def is_multisample_only_mode = params.S4_custom_gtf &&
-                                    params.S4_custom_counts &&
-                                    params.S4_custom_orf_counts &&
-                                    params.S4_multisample_metadata
-
-    //
-    // Validate input parameters
-    //
-    if (is_multisample_only_mode) {
-        log.info "${logColours(params.monochrome_logs).blue}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${logColours(params.monochrome_logs).reset}"
-        log.info "${logColours(params.monochrome_logs).purple}[sheynkmanlab/lrp2]${logColours(params.monochrome_logs).blue} Running in MULTISAMPLE ONLY mode${logColours(params.monochrome_logs).reset}"
-        log.info "${logColours(params.monochrome_logs).blue}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${logColours(params.monochrome_logs).reset}"
-
-        // Validate all four parameters are provided
-        def required_params = [
-            'transcripts_gtf': params.S4_custom_gtf,
-            'transcript_counts': params.S4_custom_counts,
-            'orf_counts': params.S4_custom_orf_counts,
-            'multisample_metadata': params.S4_multisample_metadata
-        ]
-
-        required_params.each { param_name, param_value ->
-            if (!param_value) {
-                error("ERROR: --${param_name} is required for multisample-only mode. All four parameters (--transcripts_gtf, --transcript_counts, --orf_counts, --multisample_metadata) must be provided together.")
-            }
-        }
-
-        // Validate files exist
-        def files_to_check = [
-            'transcripts_gtf': file(params.S4_custom_gtf),
-            'transcript_counts': file(params.S4_custom_counts),
-            'orf_counts': file(params.S4_custom_orf_counts),
-            'multisample_metadata': file(params.S4_multisample_metadata)
-        ]
-
-        files_to_check.each { param_name, file_obj ->
-            if (!file_obj.exists()) {
-                error("ERROR: File not found for --${param_name}: ${file_obj}")
-            }
-        }
-
-        // Validate metadata file format
-        def metadata_file = file(params.S4_multisample_metadata)
-        def metadata_lines = metadata_file.text.split('\n')
-        if (metadata_lines.size() < 2) {
-            error("ERROR: Metadata file is empty or has no data rows: ${params.S4_multisample_metadata}")
-        }
-
-        def header = metadata_lines[0].toLowerCase()
-        // Accept either 'name' or 'sample_name' for sample id, and 'group' or 'condition' for experimental condition
-        def has_name_column = header.contains('name') || header.contains('sample_name')
-        def has_group_column = header.contains('group') || header.contains('condition')
-
-        if (!has_name_column || !has_group_column) {
-            def missing = []
-            if (!has_name_column) missing << "'name' or 'sample_name'"
-            if (!has_group_column) missing << "'group' or 'condition'"
-            error("ERROR: Metadata file must have ${missing.join(' and ')} column(s). Found header: ${metadata_lines[0]}\nFile: ${params.S4_multisample_metadata}")
-        }
-
-        log.info "${logColours(params.monochrome_logs).green} ${logColours(params.monochrome_logs).reset} All multisample-only input files validated successfully!"
-        log.info "${logColours(params.monochrome_logs).dim}  - Transcripts GTF: ${params.S4_custom_gtf}${logColours(params.monochrome_logs).reset}"
-        log.info "${logColours(params.monochrome_logs).dim}  - Transcript counts: ${params.S4_custom_counts}${logColours(params.monochrome_logs).reset}"
-        log.info "${logColours(params.monochrome_logs).dim}  - ORF counts: ${params.S4_custom_orf_counts}${logColours(params.monochrome_logs).reset}"
-        log.info "${logColours(params.monochrome_logs).dim}  - Sample metadata: ${params.S4_multisample_metadata}${logColours(params.monochrome_logs).reset}"
-        log.info ""
-
+    if (params.help || params.help_full) {
+        log.info "nextflow run ${workflow.manifest.name} --input samplesheet.csv --outdir <OUTDIR>  (see README.md for all parameters)"
+        exit 0
     }
 
-    //
-    // Auto-detect skip-isocall mode based on parameter presence
-    //
-    def skip_isocall_mode = params.S2_custom_gtf || params.S2_custom_counts
+    def multisample_only = params.S4_custom_gtf && params.S4_custom_counts && params.S4_custom_orf_counts && params.S4_multisample_metadata
+    def skip_isocall     = params.S2_custom_gtf && params.S2_custom_counts
 
-    if (skip_isocall_mode) {
-        log.info "${logColours(params.monochrome_logs).blue}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${logColours(params.monochrome_logs).reset}"
-        log.info "${logColours(params.monochrome_logs).purple}[sheynkmanlab/lrp2]${logColours(params.monochrome_logs).blue} Running in SKIP ISOCALL mode (for non-PacBio data)${logColours(params.monochrome_logs).reset}"
-        log.info "${logColours(params.monochrome_logs).blue}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${logColours(params.monochrome_logs).reset}"
+    if (skip_isocall && !(params.S2_custom_gtf && params.S2_custom_counts)) {
+        error "ERROR: --S2_custom_gtf and --S2_custom_counts must be given together."
+    }
+    if (!multisample_only && !params.input) {
+        error "ERROR: --input (the sample sheet) is required, unless --S4_multisample_metadata, --S4_custom_gtf, --S4_custom_counts and --S4_custom_orf_counts are all given."
+    }
+    if (params.species && !['human', 'mouse'].contains(params.species)) {
+        error "ERROR: --species must be 'human' or 'mouse', not '${params.species}'."
+    }
+    // references: --genome (GENCODE) or both --local_reference_gtf and --local_reference_fasta
+    def uses_local_refs = params.local_reference_gtf || params.local_reference_fasta
+    if (uses_local_refs && !(params.local_reference_gtf && params.local_reference_fasta)) {
+        error "ERROR: give --local_reference_gtf and --local_reference_fasta together, or use --genome."
+    }
+    if (uses_local_refs && workflow.commandLine.contains('--genome ')) {
+        error "ERROR: --genome cannot be combined with --local_reference_gtf / --local_reference_fasta."
+    }
+    if (!uses_local_refs && params.genome && params.genomes && !params.genomes.containsKey(params.genome)) {
+        error "ERROR: genome '${params.genome}' is not known. Available: ${params.genomes.keySet().join(', ')}"
+    }
+    if (!multisample_only && !params.gtf && !params.fasta) {
+        error "ERROR: no reference. Give --genome, or --local_reference_gtf and --local_reference_fasta."
+    }
+    if (!multisample_only && uses_local_refs && !params.species) {
+        error "ERROR: --species (human or mouse) is required with local reference files."
+    }
 
-        // Validate both parameters are provided together
-        if (!params.S2_custom_gtf || !params.S2_custom_counts) {
-            error("ERROR: Both --S2_custom_gtf and --S2_custom_counts must be provided together to skip PACBIO_ISOCALL.\n\nProvided:\n  --S2_custom_gtf: ${params.S2_custom_gtf ?: 'NOT PROVIDED'}\n  --S2_custom_counts: ${params.S2_custom_counts ?: 'NOT PROVIDED'}\n\nTo use skip-isocall mode, provide both parameters. To run normally, omit both parameters.")
-        }
+    ch_versions = channel.empty()
 
-        // Validate samplesheet is still required
-        if (!params.input) {
-            error("ERROR: --input (samplesheet) is still required in skip-isocall mode.\n\nThe samplesheet contains important metadata needed for downstream analysis.\nProvide a samplesheet with your RNA samples even when using external GTF/counts.")
-        }
+    // ---------------------------------------------------------------- the sample sheet
+    def samples = multisample_only ? [] : readSamplesheet(params.input)
+    def rna_samples = samples.findAll { it[0].sample_type.toLowerCase() == 'rna' }
+    if (samples.any { it[0].sample_type.toLowerCase() == 'protein' }) {
+        error "ERROR: the sample sheet has protein rows. The proteomics steps (S5) are not wired into this version of main.nf; remove the protein rows."
+    }
+    if (!multisample_only && rna_samples.isEmpty()) {
+        error "ERROR: no RNA samples in the sample sheet."
+    }
+    def rna_names = rna_samples.collect { it[0].sample_name }
+    def duplicates = rna_names.findAll { n -> rna_names.count(n) > 1 }.unique()
+    if (duplicates) {
+        error "ERROR: duplicate sample_name values: ${duplicates.join(', ')}. Each RNA sample needs its own sample_name."
+    }
 
-        // Validate files exist
-        def external_gtf_file = file(params.S2_custom_gtf)
-        def external_counts_file = file(params.S2_custom_counts)
+    def metadata_text = multisample_only ? file(params.S4_multisample_metadata).getText('UTF-8') : sampleSheetText(params.input)
+    def per_condition = samplesPerCondition(metadata_text)
+    def valid_conditions = per_condition.findAll { c, s -> s.size() >= 2 }.keySet().toList().sort()
+    def pairs = []
+    valid_conditions.eachWithIndex { c1, i -> valid_conditions.eachWithIndex { c2, j -> if (j > i) pairs << [c1, c2] } }
 
-        if (!external_gtf_file.exists()) {
-            error("ERROR: External GTF file not found: ${params.S2_custom_gtf}")
-        }
-        if (!external_counts_file.exists()) {
-            error("ERROR: External count matrix file not found: ${params.S2_custom_counts}")
-        }
+    log.info "LRP2: ${multisample_only ? 'multisample only' : rna_samples.size() + ' RNA samples'}; conditions: ${per_condition.collect { c, s -> c + ' (' + s.size() + ')' }.join(', ')}"
+    if (pairs.isEmpty()) {
+        log.warn "Fewer than two conditions with two or more samples: the multisample comparison (S4) will not run."
+    } else {
+        log.info "S4 comparisons: ${pairs.collect { it[0] + '_vs_' + it[1] }.join(', ')}"
+    }
 
-        // Validate GTF format (basic check)
-        def gtf_content = external_gtf_file.name.endsWith('.gz') ?
-            new java.util.zip.GZIPInputStream(new FileInputStream(external_gtf_file)).text :
-            external_gtf_file.text
+    // ---------------------------------------------------------------- S1 and S2: Isocall, SQANTI3, filter
+    if (!multisample_only) {
 
-        def gtf_lines = gtf_content.split('\n').findAll { line -> !line.startsWith('#') && line.trim() }
-        if (gtf_lines.size() == 0) {
-            error("ERROR: External GTF file appears to be empty or contains only comments: ${params.S2_custom_gtf}")
-        }
-
-        // Validate count matrix format and sample name matching
-        def counts_content = external_counts_file.text
-        def counts_lines = counts_content.split('\n').findAll { it.trim() }
-
-        if (counts_lines.size() < 2) {
-            error("ERROR: External count matrix appears to be empty or has no data rows: ${params.S2_custom_counts}")
-        }
-
-        def counts_header = counts_lines[0]
-        def counts_header_parts = counts_header.split(/[,\t]/)
-
-        if (counts_header_parts.size() < 2) {
-            error("ERROR: External count matrix must have at least 2 columns (transcript_id + at least one sample). Found: ${counts_header_parts.size()} column(s)\nHeader: ${counts_header}\nFile: ${params.S2_custom_counts}")
-        }
-
-        // Extract sample names from count matrix (skip first column which is transcript_id)
-        def count_matrix_samples = counts_header_parts.drop(1).collect { it.trim() }
-
-        // Parse samplesheet to get RNA sample names
-        def samplesheet_file = file(params.input)
-        def samplesheet_content = samplesheet_file.text
-        def samplesheet_lines = samplesheet_content.split('\n')
-        def samplesheet_header_parts = samplesheet_lines[0].split(',')
-        def sample_name_idx = samplesheet_header_parts.findIndexOf { it.trim() == 'sample_name' }
-        def sample_type_idx = samplesheet_header_parts.findIndexOf { it.trim() == 'sample_type' }
-
-        if (sample_name_idx == -1) {
-            error("ERROR: Samplesheet must have 'sample_name' column. Found header: ${samplesheet_lines[0]}")
-        }
-
-        def rna_sample_names = []
-        samplesheet_lines.drop(1).each { line ->
-            if (line.trim()) {
-                def parts = line.split(',')
-                if (parts.size() > sample_type_idx && sample_type_idx != -1) {
-                    def sample_type = parts[sample_type_idx].trim().toLowerCase()
-                    if (sample_type == 'rna') {
-                        rna_sample_names << parts[sample_name_idx].trim()
-                    }
-                }
-            }
-        }
-
-        if (rna_sample_names.size() == 0) {
-            log.warn "WARNING: No RNA samples found in samplesheet. Count matrix validation skipped."
+        // reference GTF: unzip if needed, fix _PAR_Y gene ids if present, gzip for Isocall
+        def gtf_file = file(params.gtf)
+        ch_gtf_in = channel.of([[id: 'gtf'], gtf_file])
+        if (gtf_file.name.endsWith('.gz')) {
+            GUNZIP_GTF(ch_gtf_in)
+            ch_gtf_plain = GUNZIP_GTF.out.gunzip
         } else {
-            // Check that all count matrix samples are in the samplesheet
-            def missing_in_samplesheet = count_matrix_samples.findAll { !rna_sample_names.contains(it) }
-            def missing_in_counts = rna_sample_names.findAll { !count_matrix_samples.contains(it) }
+            ch_gtf_plain = ch_gtf_in
+        }
+        ch_gtf_plain
+            .branch { meta, gtf ->
+                needs_sanitization: gtf.text.contains('_PAR_Y')
+                no_sanitization: true
+            }
+            .set { ch_gtf_branched }
+        SANITIZE_PAR_IDS(ch_gtf_branched.needs_sanitization)
+        ch_gtf_final = ch_gtf_branched.no_sanitization.mix(SANITIZE_PAR_IDS.out.sanitized_gtf)
+        GZIP_GTF(ch_gtf_final)
+        ch_gtf    = ch_gtf_final.map { _meta, f -> f }.first()
+        ch_gtf_gz = GZIP_GTF.out.gzip.map { _meta, f -> f }.first()
 
-            if (missing_in_samplesheet.size() > 0) {
-                log.warn "WARNING: The following samples in count matrix are not in samplesheet RNA samples: ${missing_in_samplesheet.join(', ')}"
-            }
-            if (missing_in_counts.size() > 0) {
-                error("ERROR: The following RNA samples in samplesheet are missing from count matrix: ${missing_in_counts.join(', ')}\n\nCount matrix samples: ${count_matrix_samples.join(', ')}\nRNA samples in samplesheet: ${rna_sample_names.join(', ')}")
-            }
+        // reference FASTA
+        def fasta_file = file(params.fasta)
+        if (fasta_file.name.endsWith('.gz')) {
+            GUNZIP_FASTA(channel.of([[id: 'fasta'], fasta_file]))
+            ch_fasta = GUNZIP_FASTA.out.gunzip.map { _meta, f -> f }.first()
+        } else {
+            ch_fasta = channel.value(fasta_file)
         }
 
-        log.info "${logColours(params.monochrome_logs).green} ${logColours(params.monochrome_logs).reset} All skip-isocall input files validated successfully!"
-        log.info "${logColours(params.monochrome_logs).dim}  - External GTF: ${params.S2_custom_gtf}${logColours(params.monochrome_logs).reset}"
-        log.info "${logColours(params.monochrome_logs).dim}  - External counts: ${params.S2_custom_counts}${logColours(params.monochrome_logs).reset}"
-        log.info "${logColours(params.monochrome_logs).dim}  - Count matrix samples (${count_matrix_samples.size()}): ${count_matrix_samples.join(', ')}${logColours(params.monochrome_logs).reset}"
-        log.info "${logColours(params.monochrome_logs).dim}  - RNA samples in samplesheet (${rna_sample_names.size()}): ${rna_sample_names.join(', ')}${logColours(params.monochrome_logs).reset}"
-        log.info ""
+        if (!skip_isocall) {
+            // S1: one alignment and profile per sample, then merge and call
+            ch_rna = channel.fromList(rna_samples.collect { row ->
+                [[id: row[0].sample_name, sample_name: row[0].sample_name, condition: row[0].condition, sample_type: 'RNA'], file(row[1])]
+            })
+            ISOCALL_ALIGN(ch_rna, ch_fasta)
+            ISOCALL_PROFILE(ISOCALL_ALIGN.out.bam)
+            ISOCALL_PREP(ch_gtf_gz)
+            ch_all_profiles = ISOCALL_PROFILE.out.profile
+                .map { _meta, profile -> profile }
+                .collect()
+                .map { profiles -> [[id: params.dataset_name], profiles] }
+            ISOCALL_MERGE(ch_all_profiles)
+            ISOCALL_CALL(ISOCALL_MERGE.out.merged_profile, ISOCALL_PREP.out.isoforms, ch_fasta)
+            ch_called_gtf    = ISOCALL_CALL.out.gtf
+            ch_count_matrix  = ISOCALL_CALL.out.count_matrix
+            ch_versions = ch_versions.mix(ISOCALL_ALIGN.out.versions, ISOCALL_PROFILE.out.versions, ISOCALL_PREP.out.versions, ISOCALL_MERGE.out.versions, ISOCALL_CALL.out.versions)
+        } else {
+            // not PacBio: the transcript GTF and counts come from the user
+            SANITIZE_TRANSCRIPT_IDS_S2_GTF(channel.of([[id: params.dataset_name], file(params.S2_custom_gtf)]))
+            SANITIZE_TRANSCRIPT_IDS_S2_COUNTS(channel.of([[id: params.dataset_name], file(params.S2_custom_counts)]))
+            VALIDATE_TRANSCRIPT_IDS_S2(SANITIZE_TRANSCRIPT_IDS_S2_GTF.out.sanitized.join(SANITIZE_TRANSCRIPT_IDS_S2_COUNTS.out.sanitized, by: 0))
+            ch_called_gtf   = VALIDATE_TRANSCRIPT_IDS_S2.out.validated.map { meta, gtf, counts -> [meta, gtf] }
+            ch_count_matrix = VALIDATE_TRANSCRIPT_IDS_S2.out.validated.map { meta, gtf, counts -> [meta, counts] }
+            ch_versions = ch_versions.mix(SANITIZE_TRANSCRIPT_IDS_S2_GTF.out.versions, SANITIZE_TRANSCRIPT_IDS_S2_COUNTS.out.versions, VALIDATE_TRANSCRIPT_IDS_S2.out.versions)
+        }
+
+        // S2: SQANTI3 QC, hash ids, filter
+        SQANTI_QC(ch_called_gtf.join(ch_count_matrix, by: 0), ch_gtf, ch_fasta)
+        GENERATE_HASHIDS(SQANTI_QC.out.corrected_gtf.join(SQANTI_QC.out.classification, by: 0), ch_gtf)
+        FILTER_TRANSCRIPTOME(
+            SQANTI_QC.out.classification
+                .join(SQANTI_QC.out.corrected_gtf, by: 0)
+                .join(SQANTI_QC.out.corrected_fasta, by: 0)
+                .join(GENERATE_HASHIDS.out.hashids_mapping, by: 0)
+                .join(GENERATE_HASHIDS.out.corrected_psl, by: 0),
+            ch_gtf,
+            ch_fasta,
+            file(params.sample_metadata ?: params.input)
+        )
+
+        // S3: CPAT open reading frames, filter, SQANTI3 protein, classification
+        ch_transcriptome = FILTER_TRANSCRIPTOME.out.corrected_fasta_filtered
+            .join(FILTER_TRANSCRIPTOME.out.corrected_gtf_filtered, by: 0)
+            .join(FILTER_TRANSCRIPTOME.out.classification_filtered, by: 0)
+            .join(FILTER_TRANSCRIPTOME.out.hashids_filtered, by: 0)
+            .join(GENERATE_HASHIDS.out.hashids_mapping, by: 0)
+        CPAT_ORF(ch_transcriptome.map { meta, fasta, gtf, classification, hashids, mapping -> [meta, fasta] })
+        FILTER_CPAT(
+            CPAT_ORF.out.orf_prob
+                .join(CPAT_ORF.out.orf_seqs, by: 0)
+                .join(ch_transcriptome, by: 0)
+                .map { meta, orf_prob, orf_seqs, fasta, gtf, _classification, hashids, mapping -> [meta, orf_prob, orf_seqs, fasta, gtf, mapping] },
+            ch_gtf
+        )
+        SQANTI_PROTEIN(FILTER_CPAT.out.cds_gtf, ch_gtf)
+        PROTEIN_CLASSIFICATION(
+            SQANTI_PROTEIN.out.protein_classification
+                .join(FILTER_CPAT.out.cds_gtf, by: 0)
+                .join(ch_transcriptome, by: 0)
+                .join(FILTER_CPAT.out.all_orfs_mapped, by: 0)
+                .map { meta, protein_class, cds_gtf, fasta, gtf, classification, hashids, mapping, all_orfs -> [meta, protein_class, cds_gtf, fasta, hashids, all_orfs] },
+            ch_gtf
+        )
+        ch_versions = ch_versions.mix(SQANTI_QC.out.versions, GENERATE_HASHIDS.out.versions, FILTER_TRANSCRIPTOME.out.versions,
+            CPAT_ORF.out.versions, FILTER_CPAT.out.versions, SQANTI_PROTEIN.out.versions, PROTEIN_CLASSIFICATION.out.versions)
+
+        ch_transcripts = FILTER_TRANSCRIPTOME.out.corrected_gtf_filtered.join(FILTER_TRANSCRIPTOME.out.hashids_filtered, by: 0)
+        ch_orfs        = PROTEIN_CLASSIFICATION.out.hashids_orf
     }
 
-    // Normal mode: require samplesheet (unless in multisample-only mode)
-    if (!is_multisample_only_mode && !params.input) {
-        error("ERROR: --input (samplesheet) is required when not running in multisample-only mode.\n\nTo run in multisample-only mode, provide all four parameters:\n  --transcripts_gtf\n  --transcript_counts\n  --orf_counts\n  --multisample_metadata")
+    // ---------------------------------------------------------------- S4: multisample comparisons
+    if (multisample_only || !pairs.isEmpty()) {
+
+        if (multisample_only) {
+            ch_transcripts = channel.of([[id: params.dataset_name], file(params.S4_custom_gtf), file(params.S4_custom_counts)])
+            ch_orfs        = channel.of([[id: params.dataset_name], file(params.S4_custom_orf_counts)])
+            ch_metadata    = channel.value(file(params.S4_multisample_metadata))
+        } else {
+            // RNA rows only, with the column names the S4 scripts expect
+            def rna_lines = ['name,sample_path,group,sample_type'] + rna_samples.collect { "${it[0].sample_name},${it[1]},${it[0].condition},RNA" }
+            ch_metadata = channel.of(rna_lines.join('\n') + '\n')
+                .collectFile(name: "${params.dataset_name}_rna_samples_metadata.csv")
+                .first()
+        }
+
+        ch_pairs = channel.fromList(pairs).map { c1, c2 -> [c1, c2, "${c1}_vs_${c2}"] }
+
+        ch_transcripts_pairs = ch_transcripts
+            .map { meta, gtf, counts -> [gtf, counts] }
+            .combine(ch_pairs)
+            .map { gtf, counts, control, experimental, comparison_id -> [[id: comparison_id], gtf, counts, control, experimental] }
+            .multiMap { meta, gtf, counts, control, experimental ->
+                data: [meta, gtf, counts]
+                control: control
+                experimental: experimental
+            }
+
+        LEAFCUTTER_LONGREAD(
+            ch_transcripts_pairs.data,
+            ch_metadata,
+            ch_transcripts_pairs.control,
+            ch_transcripts_pairs.experimental,
+            params.min_samples_per_intron,
+            params.min_samples_per_group,
+            params.min_usage_ratio,
+            params.dataset_name,
+            params.leafcutter_threads
+        )
+
+        ch_counts_pairs = ch_transcripts
+            .map { meta, gtf, counts -> counts }
+            .combine(ch_orfs.map { meta, orf_counts -> orf_counts })
+            .combine(ch_pairs)
+            .map { counts, orf_counts, control, experimental, comparison_id -> [[id: comparison_id], counts, orf_counts, control, experimental] }
+            .multiMap { meta, counts, orf_counts, control, experimental ->
+                data: [meta, counts, orf_counts]
+                control: control
+                experimental: experimental
+            }
+
+        DIFFERENTIAL_EXPRESSION(
+            ch_counts_pairs.data,
+            ch_metadata,
+            ch_counts_pairs.control,
+            ch_counts_pairs.experimental,
+            params.drimseq_min_gene_expr,
+            params.drimseq_min_isoform_prop
+        )
+        ch_versions = ch_versions.mix(LEAFCUTTER_LONGREAD.out.versions, DIFFERENTIAL_EXPRESSION.out.versions)
     }
 
-    //
-    // SUBWORKFLOW: Run initialisation tasks
-    //
-    PIPELINE_INITIALISATION (
-        params.version,
-        params.validate_params,
-        params.monochrome_logs,
-        args,
-        params.outdir,
-        params.input,
-        params.help,
-        params.help_full,
-        params.show_hidden
-    )
+    // ---------------------------------------------------------------- software versions
+    ch_versions
+        .unique()
+        .collectFile(storeDir: "${params.outdir}/pipeline_info", name: 'lrp2_software_versions.yml', sort: true, newLine: true)
 
-    //
-    // WORKFLOW: Run main workflow
-    //
-    SHEYNKMANLAB_LRP2 (
-        PIPELINE_INITIALISATION.out.samplesheet
-    )
-    //
-    // SUBWORKFLOW: Run completion tasks
-    //
-    PIPELINE_COMPLETION (
-        params.email,
-        params.email_on_fail,
-        params.plaintext_email,
-        params.outdir,
-        params.monochrome_logs,
-        params.hook_url
-    )
+    onComplete:
+    log.info(workflow.success ? "LRP2 finished: ${params.outdir}" : "LRP2 failed: ${workflow.errorMessage ?: 'see .nextflow.log'}")
 }
-
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    THE END
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
-

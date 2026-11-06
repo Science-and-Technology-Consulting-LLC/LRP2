@@ -1,7 +1,0 @@
-name: msconvert_mzml
-channels:
-  - conda-forge
-  - bioconda
-  - defaults
-dependencies:
-  # msconvert requires vendor libraries so should be run via Docker/Singularity... TBD

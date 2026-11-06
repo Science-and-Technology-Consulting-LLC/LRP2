@@ -1,0 +1,63 @@
+process FILTER_CPAT {
+    tag "$meta.id"
+    label 'process_medium'
+
+    container "${params.image_registry}/lrp2_lite:${params.image_tag}"
+
+    input:
+    tuple val(meta), path(orf_prob), path(orf_seqs), path(corrected_fasta), path(corrected_gtf), path(mapping_file)
+    path reference_gtf
+
+    output:
+    tuple val(meta), path("*.predicted_proteome.CPAT_ORFs_mapped.tsv"), emit: all_orfs_mapped
+    tuple val(meta), path("*.predicted_proteome.best_ORF.gtf"), emit: cds_gtf
+    tuple val(meta), path("*_S3_PREDICTED_PROTEOME_M2_FILTER_CPAT_log.txt"), emit: log
+    path "versions.yml", emit: versions
+
+    when:
+    task.ext.when == null || task.ext.when
+
+    script:
+    def args = task.ext.args ?: ''
+    def prefix = task.ext.prefix ?: "${meta.id}"
+    def cpat_coding_threshold = task.ext.cpat_coding_threshold ?: params.cpat_coding_threshold
+
+    """
+    exec > >(tee ${prefix}_S3_PREDICTED_PROTEOME_M2_FILTER_CPAT_log.txt) 2>&1
+
+    # Ensure R can find packages in the container
+    export R_LIBS_USER=""
+    export R_LIBS="/usr/local/lib/R/site-library:/usr/lib/R/site-library:/usr/lib/R/library"
+
+    # Run the CPAT filter script with CLI arguments
+    Rscript /opt/lrp2_lite/03_filter_cpat.R \\
+        --basename ${prefix} \\
+        --cpat_fasta ${orf_seqs} \\
+        --cpat_results ${orf_prob} \\
+        --sample_fasta ${corrected_fasta} \\
+        --sample_gtf ${corrected_gtf} \\
+        --reference_gtf ${reference_gtf} \\
+        --mapping_file ${mapping_file} \\
+        --output_dir . \\
+        --coding_threshold ${cpat_coding_threshold} \\
+        $args
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        r-base: \$(R --version | grep "R version" | sed 's/.*R version //g' | sed 's/ .*//g')
+    END_VERSIONS
+    """
+
+    stub:
+    def prefix = task.ext.prefix ?: "${meta.id}"
+    """
+    touch ${prefix}.predicted_proteome.CPAT_ORFs_mapped.tsv
+    touch ${prefix}.predicted_proteome.best_ORF.gtf
+    touch ${prefix}_S3_PREDICTED_PROTEOME_M2_FILTER_CPAT_log.txt
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        r-base: 4.3.0
+    END_VERSIONS
+    """
+}
