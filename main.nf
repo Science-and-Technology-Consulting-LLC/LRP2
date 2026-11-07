@@ -183,7 +183,7 @@ workflow {
     // ---------------------------------------------------------------- S1 and S2: Isocall, SQANTI3, filter
     if (!multisample_only) {
 
-        // reference GTF: unzip if needed, fix _PAR_Y gene ids if present, gzip for Isocall
+        // reference GTF: unzip if needed, fix _PAR_Y gene ids, gzip for Isocall
         def gtf_file = file(params.gtf)
         ch_gtf_in = channel.of([[id: 'gtf'], gtf_file])
         if (gtf_file.name.endsWith('.gz')) {
@@ -192,14 +192,10 @@ workflow {
         } else {
             ch_gtf_plain = ch_gtf_in
         }
-        ch_gtf_plain
-            .branch { meta, gtf ->
-                needs_sanitization: gtf.text.contains('_PAR_Y')
-                no_sanitization: true
-            }
-            .set { ch_gtf_branched }
-        SANITIZE_PAR_IDS(ch_gtf_branched.needs_sanitization)
-        ch_gtf_final = ch_gtf_branched.no_sanitization.mix(SANITIZE_PAR_IDS.out.sanitized_gtf)
+        // the sed in SANITIZE_PAR_IDS changes nothing when there are no _PAR_Y ids, so it always runs on a worker;
+        // the GTF is never read into the head node (GENCODE v50 is larger than a Java string can hold)
+        SANITIZE_PAR_IDS(ch_gtf_plain)
+        ch_gtf_final = SANITIZE_PAR_IDS.out.sanitized_gtf
         GZIP_GTF(ch_gtf_final)
         ch_gtf    = ch_gtf_final.map { _meta, f -> f }.first()
         ch_gtf_gz = GZIP_GTF.out.gzip.map { _meta, f -> f }.first()
