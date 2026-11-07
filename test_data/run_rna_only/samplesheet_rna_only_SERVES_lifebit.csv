@@ -1,0 +1,9 @@
+sample_name,sample_path,condition,sample_type,mass_spec_type
+ENCFF427JDY,s3://lifebit-user-data-6941eed90a4dd7a1d1026d7a/deploit/teams/69d8dd1e5d3e1f8c350e006f/users/68af3d99c99eb7bd2ff47bc8/folder/6aef77a0a16909b935d880ae/ENCFF427JDY.fastq.gz,HepG2,RNA,none
+ENCFF483HTA,s3://lifebit-user-data-6941eed90a4dd7a1d1026d7a/deploit/teams/69d8dd1e5d3e1f8c350e006f/users/68af3d99c99eb7bd2ff47bc8/folder/6aef77a0a16909b935d880ae/ENCFF483HTA.fastq.gz,HepG2,RNA,none
+ENCFF589SMB,s3://lifebit-user-data-6941eed90a4dd7a1d1026d7a/deploit/teams/69d8dd1e5d3e1f8c350e006f/users/68af3d99c99eb7bd2ff47bc8/folder/6aef77a0a16909b935d880ae/ENCFF589SMB.fastq.gz,HepG2,RNA,none
+ENCFF634YSN,s3://lifebit-user-data-6941eed90a4dd7a1d1026d7a/deploit/teams/69d8dd1e5d3e1f8c350e006f/users/68af3d99c99eb7bd2ff47bc8/folder/6aef77a0a16909b935d880ae/ENCFF634YSN.fastq.gz,K562,RNA,none
+ENCFF694INI,s3://lifebit-user-data-6941eed90a4dd7a1d1026d7a/deploit/teams/69d8dd1e5d3e1f8c350e006f/users/68af3d99c99eb7bd2ff47bc8/folder/6aef77a0a16909b935d880ae/ENCFF694INI.fastq.gz,K562,RNA,none
+ENCFF696GDL,s3://lifebit-user-data-6941eed90a4dd7a1d1026d7a/deploit/teams/69d8dd1e5d3e1f8c350e006f/users/68af3d99c99eb7bd2ff47bc8/folder/6aef77a0a16909b935d880ae/ENCFF696GDL.fastq.gz,K562,RNA,none
+ENCFF763VZC,s3://lifebit-user-data-6941eed90a4dd7a1d1026d7a/deploit/teams/69d8dd1e5d3e1f8c350e006f/users/68af3d99c99eb7bd2ff47bc8/folder/6aef77a0a16909b935d880ae/ENCFF763VZC.fastq.gz,K562,RNA,none
+ENCFF429VVB,s3://lifebit-user-data-6941eed90a4dd7a1d1026d7a/deploit/teams/69d8dd1e5d3e1f8c350e006f/users/68af3d99c99eb7bd2ff47bc8/folder/6aef77a0a16909b935d880ae/ENCFF429VVB.fastq.gz,K562,RNA,none

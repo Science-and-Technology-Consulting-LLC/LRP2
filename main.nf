@@ -132,13 +132,10 @@ workflow {
     if (params.species && !['human', 'mouse'].contains(params.species)) {
         error "ERROR: --species must be 'human' or 'mouse', not '${params.species}'."
     }
-    // references: --genome (GENCODE) or both --local_reference_gtf and --local_reference_fasta
+    // references: both --local_reference_gtf and --local_reference_fasta (these win), or --genome (GENCODE)
     def uses_local_refs = params.local_reference_gtf || params.local_reference_fasta
     if (uses_local_refs && !(params.local_reference_gtf && params.local_reference_fasta)) {
-        error "ERROR: give --local_reference_gtf and --local_reference_fasta together, or use --genome."
-    }
-    if (uses_local_refs && workflow.commandLine.contains('--genome ')) {
-        error "ERROR: --genome cannot be combined with --local_reference_gtf / --local_reference_fasta."
+        error "ERROR: give --local_reference_gtf and --local_reference_fasta together."
     }
     if (!uses_local_refs && params.genome && params.genomes && !params.genomes.containsKey(params.genome)) {
         error "ERROR: genome '${params.genome}' is not known. Available: ${params.genomes.keySet().join(', ')}"
