@@ -23,6 +23,9 @@
 process FRAGPIPE_AUTHENTICATE {
     tag "FragPipe setup"
     label 'process_single'
+
+    container "${params.image_registry}/fragpipe:${params.image_tag}"
+
     storeDir "${params.fragpipe_tools_dir ?: "${workflow.workDir}/fragpipe_tools"}"
 
     input:
@@ -132,7 +135,7 @@ process FRAGPIPE_AUTHENTICATE {
             echo "\${CYAN}=========================================================================="
             echo "                    FRAGPIPE LICENSE INFORMATION"
             echo "==========================================================================\${RESET}"
-            cat ${projectDir}/assets/licensing_information.txt
+            cat /opt/fragpipe/licensing_information.txt
             echo ""
 
             # Request license acceptance
@@ -158,7 +161,7 @@ process FRAGPIPE_AUTHENTICATE {
             echo "\${CYAN}=========================================================================="
             echo "           ADDITIONAL MSFRAGGER LICENSE INFORMATION"
             echo "==========================================================================\${RESET}"
-            cat ${projectDir}/assets/msfragger_licensing_information.txt
+            cat /opt/fragpipe/msfragger_licensing_information.txt
             echo ""
 
             # Request additional license acceptance

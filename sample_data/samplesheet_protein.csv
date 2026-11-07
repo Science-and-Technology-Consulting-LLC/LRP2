@@ -1,3 +1,0 @@
-sample_name,sample_path,condition,sample_type,mass_spec_type
-A,/gpfs/commons/groups/knowles_lab/Julia/LRP2_lite_dev/sample_data/120426_Jurkat_highLC_Frac28.raw,control,protein,DDA
-B,/gpfs/commons/groups/knowles_lab/Julia/LRP2_lite_dev/sample_data/120426_Jurkat_highLC_Frac28.raw,treatment,protein,DDA

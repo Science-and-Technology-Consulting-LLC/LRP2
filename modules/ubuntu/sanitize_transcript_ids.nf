@@ -2,7 +2,7 @@ process SANITIZE_TRANSCRIPT_IDS {
     tag "$meta.id"
     label 'process_single'
 
-    container "docker://ubuntu:22.04"
+    container "ubuntu:22.04"
 
     input:
     tuple val(meta), path(input_file)

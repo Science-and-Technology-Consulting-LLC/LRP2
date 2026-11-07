@@ -2,7 +2,7 @@ process SQANTI_QC {
     tag "$meta.id"
     label 'process_high'
 
-    container 'docker://docker.io/anaconesalab/sqanti3:v6.0.1'
+    container 'anaconesalab/sqanti3:v6.0.1'
 
     input:
     tuple val(meta), path(isoforms_gtf), path(flnc_count)

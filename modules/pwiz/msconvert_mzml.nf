@@ -3,7 +3,7 @@ process MSCONVERT_MZML {
     label 'process_medium'
     stageInMode 'copy'
 
-    container "docker://docker.io/proteowizard/pwiz-skyline-i-agree-to-the-vendor-licenses:latest"
+    container "proteowizard/pwiz-skyline-i-agree-to-the-vendor-licenses:latest"
 
     input:
     tuple val(meta), path(raw_file)

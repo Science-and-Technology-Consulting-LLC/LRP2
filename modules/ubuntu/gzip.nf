@@ -2,7 +2,7 @@ process GZIP {
     tag "$archive"
     label 'process_single'
 
-    container "docker://ubuntu:22.04"
+    container "ubuntu:22.04"
 
     input:
     tuple val(meta), path(archive)

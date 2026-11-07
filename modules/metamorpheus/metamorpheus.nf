@@ -2,61 +2,12 @@ process METAMORPHEUS {
     tag "$meta.id"
     label 'process_high_memory'
 
-    container "docker://docker.io/smithchemwisc/metamorpheus:latest"
-
-    // NOTE: MetaMorpheus needs to write to /MetaMorpheus/CustomAminoAcids and /MetaMorpheus/Mods. 
-    // Here we set up all required writable directories and bind mounts for this to work when using container environment. 
-    beforeScript """
-        mkdir -p \${PWD}/mm_writable_custom_aa \${PWD}/mm_writable_mods \${PWD}/mm_writable_settings
-        touch \${PWD}/mm_writable_settings/settings.toml
-
-        # Auto-extract MetaMorpheus default files from container on first run
-        METAMORPH_DATA_DIR="${projectDir}/assets/metamorpheus_data"
-        CONTAINER="\${NXF_SINGULARITY_CACHEDIR:-${projectDir}/work/singularity}/docker.io-smithchemwisc-metamorpheus-latest.img"
-
-        if [ ! -f "\${METAMORPH_DATA_DIR}/Mods/ProteaseMods.txt" ]; then
-            LOCK_FILE="\${METAMORPH_DATA_DIR}/.extraction.lock"
-            mkdir -p "\${METAMORPH_DATA_DIR}"
-
-            for i in {1..60}; do
-                if mkdir "\${LOCK_FILE}" 2>/dev/null; then
-                    echo "Extracting MetaMorpheus default files from container (first-time setup)..."
-                    if [ -f "\$CONTAINER" ]; then
-                        singularity exec "\$CONTAINER" sh -c 'cd /MetaMorpheus && tar czf - Mods' | \
-                            tar xzf - -C "\${METAMORPH_DATA_DIR}/" 2>/dev/null || true
-
-                        singularity exec "\$CONTAINER" sh -c 'cd /MetaMorpheus && tar czf - CustomAminoAcids' | \
-                            tar xzf - -C "\${METAMORPH_DATA_DIR}/" 2>/dev/null || true
-
-                        echo "MetaMorpheus files extracted to \${METAMORPH_DATA_DIR}"
-                    else
-                        echo "Warning: Container not found at \$CONTAINER"
-                    fi
-
-                    rmdir "\${LOCK_FILE}"
-                    break
-                else
-                    sleep 1
-                fi
-            done
-        fi
-
-        if [ -d "\${METAMORPH_DATA_DIR}/Mods" ]; then
-            cp -r "\${METAMORPH_DATA_DIR}/Mods/"* \${PWD}/mm_writable_mods/ 2>/dev/null || true
-        fi
-
-        if [ -d "\${METAMORPH_DATA_DIR}/CustomAminoAcids" ]; then
-            cp -r "\${METAMORPH_DATA_DIR}/CustomAminoAcids/"* \${PWD}/mm_writable_custom_aa/ 2>/dev/null || true
-        fi
-    """
-    // Bind mount writable host directories to read-only container paths
-    containerOptions '--bind ${PWD}/mm_writable_custom_aa:/MetaMorpheus/CustomAminoAcids --bind ${PWD}/mm_writable_mods:/MetaMorpheus/Mods --bind ${PWD}/mm_writable_settings/settings.toml:/MetaMorpheus/settings.toml'
+    container "${params.image_registry}/metamorpheus:${params.image_tag}"
 
     input:
     tuple val(meta), path(mzml_files)
     path database_fasta
     path config_toml
-    path "mm_writable"
 
     output:
     tuple val(meta), path("*.psmtsv"), emit: psm_table

@@ -2,7 +2,7 @@ process FRAGPIPE {
     tag "$meta.id"
     label 'process_high_memory'
 
-    container "docker://docker.io/fcyucn/fragpipe:24.0"
+    container "${params.image_registry}/fragpipe:${params.image_tag}"
 
     input:
     tuple val(meta), path(mzml_files), path(protein_fasta)
@@ -10,8 +10,6 @@ process FRAGPIPE {
     path ionquant_jar
     path diatracer_jar
     path custom_workflow
-    path dia_workflow
-    path lfq_workflow
 
     output:
     tuple val(meta), path("*.tsv"), emit: psm_table, optional: true
@@ -117,9 +115,9 @@ process FRAGPIPE {
     else
         echo "Using default ${data_type} workflow (${workflow_name})..."
         if [ "${data_type}" = "DIA" ]; then
-            WORKFLOW_FILE="${dia_workflow}"
+            WORKFLOW_FILE="/opt/fragpipe/DIA_SpecLib_Quant.workflow"
         else
-            WORKFLOW_FILE="${lfq_workflow}"
+            WORKFLOW_FILE="/opt/fragpipe/LFQ-MBR.workflow"
         fi
 
         if [ ! -f "\$WORKFLOW_FILE" ]; then

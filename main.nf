@@ -115,7 +115,7 @@ def samplesPerCondition(String metadata_text) {
 workflow {
 
     main:
-    if (params.help || params.help_full) {
+    if (params.help) {
         log.info "nextflow run ${workflow.manifest.name} --input samplesheet.csv --outdir <OUTDIR>  (see README.md for all parameters)"
         exit 0
     }

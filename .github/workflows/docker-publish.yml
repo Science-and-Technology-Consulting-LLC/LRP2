@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image: [ lrp2_lite, cpat, leafcutter_longread, sqanti3_protein, isocall ]
+        image: [ lrp2_lite, cpat, leafcutter_longread, sqanti3_protein, isocall, fragpipe, metamorpheus ]
 
     steps:
       - name: Checkout repository

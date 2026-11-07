@@ -33,13 +33,6 @@
                     "description": "Folder for the results, relative to the job results. Leave as results unless you need another name.",
                     "fa_icon": "fas fa-folder-open",
                     "default": "results"
-                },
-                "email": {
-                    "type": "string",
-                    "description": "Email address for completion summary.",
-                    "fa_icon": "fas fa-envelope",
-                    "help_text": "Set this parameter to your e-mail address to get a summary e-mail with details of the run sent to you when the workflow exits. If set in your user config file (`~/.nextflow/config`) then you don't need to specify this on the command line for every run.",
-                    "pattern": "^([a-zA-Z0-9_\\-\\.]+)@([a-zA-Z0-9_\\-\\.]+)\\.([a-zA-Z]{2,5})$"
                 }
             }
         },
@@ -71,69 +64,6 @@
                     "help_text": "Advanced parameter for custom references. Must be used with --local_reference_gtf and --species. Cannot be used with --genome. For custom reference support, please contact us.",
                     "fa_icon": "far fa-file-code",
                     "hidden": true
-                },
-                "igenomes_ignore": {
-                    "type": "boolean",
-                    "description": "Do not load the iGenomes reference config.",
-                    "fa_icon": "fas fa-ban",
-                    "hidden": true,
-                    "help_text": "Do not load `igenomes.config` when running the pipeline. You may choose this option if you observe clashes between custom parameters and those supplied in `igenomes.config`."
-                },
-                "igenomes_base": {
-                    "type": "string",
-                    "format": "directory-path",
-                    "description": "The base path to the igenomes reference files",
-                    "fa_icon": "fas fa-ban",
-                    "hidden": true,
-                    "default": "s3://ngi-igenomes/igenomes/"
-                }
-            }
-        },
-        "institutional_config_options": {
-            "title": "Institutional config options",
-            "type": "object",
-            "fa_icon": "fas fa-university",
-            "description": "Parameters used to describe centralised config profiles. These should not be edited.",
-            "help_text": "The centralised nf-core configuration profiles use a handful of pipeline parameters to describe themselves. This information is then printed to the Nextflow log when you run a pipeline. You should not need to change these values when you run a pipeline.",
-            "properties": {
-                "custom_config_version": {
-                    "type": "string",
-                    "description": "Git commit id for Institutional configs.",
-                    "default": "master",
-                    "hidden": true,
-                    "fa_icon": "fas fa-users-cog"
-                },
-                "custom_config_base": {
-                    "type": "string",
-                    "description": "Base directory for Institutional configs.",
-                    "default": "https://raw.githubusercontent.com/nf-core/configs/master",
-                    "hidden": true,
-                    "help_text": "If you're running offline, Nextflow will not be able to fetch the institutional config files from the internet. If you don't need them, then this is not a problem. If you do need them, you should download the files from the repo and tell Nextflow where to find them with this parameter.",
-                    "fa_icon": "fas fa-users-cog"
-                },
-                "config_profile_name": {
-                    "type": "string",
-                    "description": "Institutional config name.",
-                    "hidden": true,
-                    "fa_icon": "fas fa-users-cog"
-                },
-                "config_profile_description": {
-                    "type": "string",
-                    "description": "Institutional config description.",
-                    "hidden": true,
-                    "fa_icon": "fas fa-users-cog"
-                },
-                "config_profile_contact": {
-                    "type": "string",
-                    "description": "Institutional config contact information.",
-                    "hidden": true,
-                    "fa_icon": "fas fa-users-cog"
-                },
-                "config_profile_url": {
-                    "type": "string",
-                    "description": "Institutional config URL link.",
-                    "hidden": true,
-                    "fa_icon": "fas fa-users-cog"
                 }
             }
         },
@@ -169,15 +99,6 @@
             "fa_icon": "fas fa-filter",
             "description": "Options for the SQANTI3 QC and filtering modules.",
             "properties": {
-                "sqanti_path": {
-                    "type": "string",
-                    "format": "directory-path",
-                    "default": "/project/sheynkman/programs/SQANTI3-5.5/src/utilities/cupcake/",
-                    "description": "Path to SQANTI3 installation directory.",
-                    "help_text": "Path to the SQANTI3 cupcake utilities directory.",
-                    "fa_icon": "fas fa-folder",
-                    "hidden": true
-                },
                 "protein_coding_filter": {
                     "type": "boolean",
                     "default": true,
@@ -366,175 +287,6 @@
                 }
             }
         },
-        "proteomics_options": {
-            "title": "S5 Proteomics Options",
-            "type": "object",
-            "fa_icon": "fas fa-microscope",
-            "description": "Options for mass spectrometry proteomics analysis.",
-            "properties": {
-                "metamorpheus_config": {
-                    "type": "string",
-                    "format": "file-path",
-                    "description": "Path to MetaMorpheus task configuration TOML file.",
-                    "help_text": "Configuration file specifying MetaMorpheus search parameters (mass tolerance, modifications, FDR thresholds, etc.).",
-                    "fa_icon": "far fa-file-code"
-                },
-                "msconvert_peak_picking": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "Apply peak picking filter during MS file conversion.",
-                    "help_text": "When enabled, applies vendor peak picking algorithm during conversion from raw to mzML format.",
-                    "fa_icon": "fas fa-chart-line"
-                },
-                "protein_fasta": {
-                    "type": "string",
-                    "format": "file-path",
-                    "description": "Path to reference protein FASTA file.",
-                    "help_text": "Reference protein database for proteomics searches. If not provided and a GENCODE genome is specified, will automatically use the protein FASTA from the GENCODE genome configuration.",
-                    "fa_icon": "far fa-file-code"
-                },
-                "no_gencode": {
-                    "type": "boolean",
-                    "description": "Exclude GENCODE reference from proteome database.",
-                    "help_text": "When enabled, only LRP-predicted or custom protein sequences will be used for proteomics searches, excluding GENCODE reference proteins.",
-                    "fa_icon": "fas fa-ban"
-                },
-                "S5_custom_protein_fasta": {
-                    "type": "string",
-                    "format": "file-path",
-                    "description": "Path to a protein FASTA for the proteomics search database.",
-                    "help_text": "Protein FASTA used to build the search database. Accepts LRP2 pipeline output (headers: transcript_id|gene_id|gene_name|pclass|status) or any custom FASTA (headers: transcript_id|gene_id at minimum); the source is auto-detected. Use this for proteomics-only runs, or to override the FASTA generated upstream.",
-                    "fa_icon": "far fa-file-code"
-                },
-                "S5_custom_cds_gtf": {
-                    "type": "string",
-                    "format": "file-path",
-                    "description": "Path to a GTF with CDS entries, paired with S5_custom_protein_fasta.",
-                    "help_text": "GTF containing CDS entries, used to map peptides to genomic coordinates for the novel peptide BED output. Transcript IDs must match those in S5_custom_protein_fasta.",
-                    "fa_icon": "far fa-file-code"
-                },
-                "S5_custom_counts": {
-                    "type": "string",
-                    "format": "file-path",
-                    "exists": true,
-                    "description": "Path to a transcript count matrix for filtering the proteomics search database.",
-                    "help_text": "Non-GENCODE transcripts with CPM > 0 are retained; GENCODE entries are always kept in full. Column 1 must contain transcript IDs matching S5_custom_protein_fasta, and the CPM column name must contain the protein sample_name from the samplesheet. Only used for proteomics-only runs; on a full run the count matrix is generated by the pipeline.",
-                    "fa_icon": "far fa-file-code"
-                },
-                "protein_search": {
-                    "type": "string",
-                    "default": "fragpipe",
-                    "description": "Protein search engine to use for proteomics analysis.",
-                    "help_text": "Choose between 'fragpipe' (supports DDA and DIA) or 'metamorpheus' (DDA only).",
-                    "fa_icon": "fas fa-search",
-                    "enum": [
-                        "fragpipe",
-                        "metamorpheus"
-                    ]
-                },
-                "fragpipe_tools_dir": {
-                    "type": "string",
-                    "format": "directory-path",
-                    "description": "Directory to store FragPipe tools (MSFragger, IonQuant, DiaTracer).",
-                    "help_text": "Location where FragPipe JAR files will be cached. These files are downloaded once and reused in future runs.",
-                    "fa_icon": "fas fa-folder"
-                },
-                "fragpipe_first_name": {
-                    "type": "string",
-                    "description": "User's first name for FragPipe registration (optional for interactive mode).",
-                    "help_text": "Required for non-interactive FragPipe setup. Leave empty for interactive mode.",
-                    "fa_icon": "fas fa-user",
-                    "hidden": true
-                },
-                "fragpipe_last_name": {
-                    "type": "string",
-                    "description": "User's last name for FragPipe registration (optional for interactive mode).",
-                    "help_text": "Required for non-interactive FragPipe setup. Leave empty for interactive mode.",
-                    "fa_icon": "fas fa-user",
-                    "hidden": true
-                },
-                "fragpipe_email": {
-                    "type": "string",
-                    "description": "Email address for FragPipe registration (optional for interactive mode).",
-                    "help_text": "Required for non-interactive FragPipe setup. Leave empty for interactive mode.",
-                    "fa_icon": "fas fa-envelope",
-                    "pattern": "^([a-zA-Z0-9_\\-\\.]+)@([a-zA-Z0-9_\\-\\.]+)\\.([a-zA-Z]{2,5})$",
-                    "hidden": true
-                },
-                "fragpipe_institution": {
-                    "type": "string",
-                    "description": "Institution/organization for FragPipe registration (optional for interactive mode).",
-                    "help_text": "Required for non-interactive FragPipe setup. Leave empty for interactive mode.",
-                    "fa_icon": "fas fa-university",
-                    "hidden": true
-                },
-                "fragpipe_token": {
-                    "type": [
-                        "string",
-                        "integer"
-                    ],
-                    "description": "6-digit verification token for FragPipe (optional for interactive mode).",
-                    "help_text": "Required for non-interactive FragPipe setup. You'll receive this via email after registration. Leave empty for interactive mode.",
-                    "fa_icon": "fas fa-key",
-                    "pattern": "^[0-9]{6}$"
-                },
-                "fragpipe_license_accept": {
-                    "type": "boolean",
-                    "default": false,
-                    "description": "Accept FragPipe license terms (required for non-interactive mode).",
-                    "help_text": "Set to true to accept FragPipe license terms for non-interactive setup.",
-                    "fa_icon": "fas fa-file-contract",
-                    "hidden": true
-                },
-                "fragpipe_workflow": {
-                    "type": "string",
-                    "format": "file-path",
-                    "description": "Path to custom FragPipe workflow file (optional).",
-                    "help_text": "Custom .workflow file for FragPipe. If not provided, default workflows will be auto-downloaded (LFQ-MBR for DDA, DIA_SpecLib_Quant for DIA).",
-                    "fa_icon": "fas fa-file"
-                },
-                "fragpipe_threads": {
-                    "type": "integer",
-                    "description": "Number of threads for FragPipe.",
-                    "help_text": "Number of threads for FragPipe analysis. If not specified, defaults to using task.cpus from process label.",
-                    "fa_icon": "fas fa-microchip"
-                },
-                "fragpipe_decoy_tag": {
-                    "type": "string",
-                    "default": "rev_",
-                    "description": "Decoy tag prefix for protein database.",
-                    "help_text": "Prefix used to identify decoy sequences in the protein database.",
-                    "fa_icon": "fas fa-tag"
-                }
-            }
-        },
-        "hpc_cluster_options": {
-            "title": "HPC cluster options",
-            "type": "object",
-            "fa_icon": "fas fa-server",
-            "description": "Options for HPC cluster execution.",
-            "help_text": "These parameters can override default executor settings in slurm.config or lsf.config.",
-            "properties": {
-                "hpc_executor": {
-                    "type": "string",
-                    "description": "Override executor type (e.g., 'slurm', 'lsf', 'local').",
-                    "help_text": "Specify the executor to use for job submission on HPC clusters.",
-                    "fa_icon": "fas fa-cogs"
-                },
-                "hpc_queue": {
-                    "type": "string",
-                    "description": "Override queue/partition name for job submission.",
-                    "help_text": "Specify the queue or partition to use for job submission on HPC clusters.",
-                    "fa_icon": "fas fa-list"
-                },
-                "hpc_cluster_options": {
-                    "type": "string",
-                    "description": "Override cluster-specific options (e.g., '--account=myaccount').",
-                    "help_text": "Additional cluster-specific options to pass to the job scheduler.",
-                    "fa_icon": "fas fa-sliders-h"
-                }
-            }
-        },
         "generic_options": {
             "title": "Generic options",
             "type": "object",
@@ -542,12 +294,6 @@
             "description": "Less common options for the pipeline, typically set in a config file.",
             "help_text": "These options are common to all nf-core pipelines and allow you to customise some of the core preferences for how the pipeline runs.\n\nTypically these options would be set in a Nextflow config file loaded for all pipeline runs, such as `~/.nextflow/config`.",
             "properties": {
-                "version": {
-                    "type": "boolean",
-                    "description": "Display version and exit.",
-                    "fa_icon": "fas fa-question-circle",
-                    "hidden": true
-                },
                 "publish_dir_mode": {
                     "type": "string",
                     "default": "copy",
@@ -564,73 +310,6 @@
                     ],
                     "hidden": true
                 },
-                "email_on_fail": {
-                    "type": "string",
-                    "description": "Email address for completion summary, only when pipeline fails.",
-                    "fa_icon": "fas fa-exclamation-triangle",
-                    "pattern": "^([a-zA-Z0-9_\\-\\.]+)@([a-zA-Z0-9_\\-\\.]+)\\.([a-zA-Z]{2,5})$",
-                    "help_text": "An email address to send a summary email to when the pipeline is completed - ONLY sent if the pipeline does not exit successfully.",
-                    "hidden": true
-                },
-                "plaintext_email": {
-                    "type": "boolean",
-                    "description": "Send plain-text email instead of HTML.",
-                    "fa_icon": "fas fa-remove-format",
-                    "hidden": true
-                },
-                "max_multiqc_email_size": {
-                    "type": "string",
-                    "description": "File size limit when attaching MultiQC reports to summary emails.",
-                    "pattern": "^\\d+(\\.\\d+)?\\.?\\s*(K|M|G|T)?B$",
-                    "default": "25.MB",
-                    "fa_icon": "fas fa-file-upload",
-                    "hidden": true
-                },
-                "monochrome_logs": {
-                    "type": "boolean",
-                    "description": "Do not use coloured log outputs.",
-                    "fa_icon": "fas fa-palette",
-                    "hidden": true
-                },
-                "hook_url": {
-                    "type": "string",
-                    "description": "Incoming hook URL for messaging service",
-                    "fa_icon": "fas fa-people-group",
-                    "help_text": "Incoming hook URL for messaging service. Currently, MS Teams and Slack are supported.",
-                    "hidden": true
-                },
-                "multiqc_config": {
-                    "type": "string",
-                    "format": "file-path",
-                    "description": "Custom config file to supply to MultiQC.",
-                    "fa_icon": "fas fa-cog",
-                    "hidden": true
-                },
-                "multiqc_logo": {
-                    "type": "string",
-                    "description": "Custom logo file to supply to MultiQC. File name must also be set in the MultiQC config file",
-                    "fa_icon": "fas fa-image",
-                    "hidden": true
-                },
-                "multiqc_methods_description": {
-                    "type": "string",
-                    "description": "Custom MultiQC yaml file containing HTML including a methods description.",
-                    "fa_icon": "fas fa-cog"
-                },
-                "validate_params": {
-                    "type": "boolean",
-                    "description": "Boolean whether to validate parameters against the schema at runtime",
-                    "default": true,
-                    "fa_icon": "fas fa-check-square",
-                    "hidden": true
-                },
-                "pipelines_testdata_base_path": {
-                    "type": "string",
-                    "fa_icon": "far fa-check-circle",
-                    "description": "Base URL or local path to location of pipeline test dataset files",
-                    "default": "https://raw.githubusercontent.com/nf-core/test-datasets/",
-                    "hidden": true
-                },
                 "trace_report_suffix": {
                     "type": "string",
                     "fa_icon": "far calendar",
@@ -643,14 +322,6 @@
                         "string"
                     ],
                     "description": "Display the help message."
-                },
-                "help_full": {
-                    "type": "boolean",
-                    "description": "Display the full detailed help message."
-                },
-                "show_hidden": {
-                    "type": "boolean",
-                    "description": "Display hidden parameters in the help message (only works when --help or --help_full are provided)."
                 }
             }
         },
@@ -678,9 +349,6 @@
             "$ref": "#/$defs/input_output_options"
         },
         {
-            "$ref": "#/$defs/container_images"
-        },
-        {
             "$ref": "#/$defs/reference_genome_options"
         },
         {
@@ -693,9 +361,6 @@
             "$ref": "#/$defs/predicted_proteome_options"
         },
         {
-            "$ref": "#/$defs/proteomics_options"
-        },
-        {
             "$ref": "#/$defs/differential_analysis_options"
         },
         {
@@ -705,13 +370,10 @@
             "$ref": "#/$defs/multisample_only_inputs"
         },
         {
-            "$ref": "#/$defs/hpc_cluster_options"
-        },
-        {
-            "$ref": "#/$defs/institutional_config_options"
-        },
-        {
             "$ref": "#/$defs/generic_options"
+        },
+        {
+            "$ref": "#/$defs/container_images"
         }
     ]
 }
