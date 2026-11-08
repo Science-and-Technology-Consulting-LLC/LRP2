@@ -24,18 +24,40 @@ prepare_usage <- function(usage, kind = c("transcript", "orf")) {
     usage$gene  <- ifelse(is.na(usage$gene_name), usage$gene_id, usage$gene_name)
     usage$label <- ifelse(is.na(usage$transcript_name), usage$isoform_id, usage$transcript_name)
     usage$adj_p <- usage$adj_pvalue_gene
+    usage$p     <- usage$pvalue_gene
   } else {
     usage$gene  <- sub("::.*$", "", usage$orf_base_id)
     usage$label <- usage$orf_base_id
     usage$adj_p <- usage$adj_pvalue_gene
+    usage$p     <- usage$pvalue_gene
   }
   usage
 }
 
-# One row per gene with its adjusted p value, most significant first (genes DRIMSeq did not test come last).
+# One row per gene with its raw and adjusted p value, most significant first (genes DRIMSeq did not test come last).
 gene_usage_table <- function(usage) {
-  tab <- unique(usage[, c("gene", "adj_p")])
-  tab[order(tab$adj_p, na.last = TRUE), ]
+  tab <- unique(usage[, c("gene", "p", "adj_p")])
+  tab[order(tab$adj_p, tab$p, na.last = TRUE), ]
+}
+
+# How many genes were tested, how many pass, and the smallest p values.
+usage_summary <- function(usage) {
+  tab <- gene_usage_table(usage)
+  tested <- tab[!is.na(tab$adj_p), ]
+  data.frame(genes_in_table = nrow(tab), genes_tested = nrow(tested),
+             adj_p_below_0.05 = sum(tested$adj_p < 0.05), adj_p_below_0.1 = sum(tested$adj_p < 0.1),
+             smallest_p = signif(min(tested$p), 3), smallest_adj_p = signif(min(tested$adj_p), 3))
+}
+
+# Histogram of the raw p value of every tested gene. Roughly flat means the groups do not differ in
+# isoform usage at this sample size; a pile of genes at the left (p near 0) means real differences.
+pvalue_histogram <- function(usage, title = NULL) {
+  tab <- gene_usage_table(usage)
+  tab <- tab[!is.na(tab$p), ]
+  ggplot(tab, aes(p)) +
+    geom_histogram(breaks = seq(0, 1, 0.05), fill = "#0072B2", colour = "white") +
+    labs(x = "raw p value (one per tested gene)", y = "genes", title = title) +
+    theme_bw(base_size = 12) + theme(panel.grid = element_blank())
 }
 
 # Stacked bars for one gene: each column a sample (ordered by group), each colour an isoform.
@@ -55,12 +77,14 @@ usage_plot <- function(usage, groups, gene) {
     scale_fill_viridis_d(name = NULL, option = "turbo", end = 0.95) +
     labs(x = NULL, y = "share of the gene's expression", title = paste0(gene, " (", ptxt, ")")) +
     theme_bw(base_size = 11) +
-    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1), panel.grid = element_blank(),
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 8), panel.grid = element_blank(),
           legend.key.size = unit(0.35, "cm"), legend.text = element_text(size = 8))
 }
 
-# The n most significant genes side by side.
-usage_panel <- function(usage, groups, n = 4) {
+# The n genes with the smallest p values, one above the other (ncol = 1 keeps each plot wide enough to
+# read the sample names and the group labels). They are the smallest p values, not necessarily significant:
+# the adjusted p is in each title.
+usage_panel <- function(usage, groups, n = 4, ncol = 1) {
   genes <- head(gene_usage_table(usage)$gene, n)
-  wrap_plots(lapply(genes, function(g) usage_plot(usage, groups, g)), ncol = 2)
+  wrap_plots(lapply(genes, function(g) usage_plot(usage, groups, g)), ncol = ncol)
 }
