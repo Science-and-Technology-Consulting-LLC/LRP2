@@ -1,0 +1,32 @@
+name: lrp2
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  # R 4.4 (Bioconductor 3.20): the notebooks only read the pipeline tables, so they do not need the R of the lrp2_lite image
+  - r-base=4.4
+  # Jupyter with an R kernel (graphics) and a Python kernel (IGV files)
+  - jupyterlab
+  - r-irkernel
+  - python=3.12
+  - ipykernel
+  - pysam
+  - pandas
+  # tables and plots
+  - r-tidyverse
+  - r-data.table
+  - r-ggrepel
+  - r-viridis
+  - r-patchwork
+  - r-ragg
+  # clustering and heatmaps
+  - r-pheatmap
+  - bioconductor-complexheatmap
+  - r-circlize
+  # reading and writing GTF and BED
+  - bioconductor-rtracklayer
+  - bioconductor-genomicranges
+  # files for IGV: sort, compress and index
+  - htslib
+  - samtools
+  - bedtools
