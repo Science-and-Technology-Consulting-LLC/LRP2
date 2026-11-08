@@ -86,6 +86,7 @@ expression_heatmap <- function(mat, groups, title = NULL, row_font = NULL) {
 # Draw the heatmap to figures/<name>.png and figures/<name>.pdf, then show the PNG in the notebook.
 # (Drawing straight onto the notebook's own plot device fails for ComplexHeatmap, so it goes to files first.)
 show_heatmap <- function(ht, name, width = 10, height = NULL, dir = "figures") {
+  if (is.null(ht)) return(invisible(NULL))   # nothing was drawn (no rows passed the selection)
   # a tall heatmap sets its own height: the rows (see row_layout) plus 3.5 inches for title, group bar and sample names
   if (is.null(height)) {
     lay <- row_layout(nrow(ht@matrix), ht@row_names_param$gp$fontsize)

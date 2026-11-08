@@ -79,6 +79,11 @@ select_genes <- function(x, genes) {
 # The heatmap: variants in rows, samples in columns split by group, colour = PSI.
 #   Row side shows the change in PSI between the groups (deltaPSI, second group minus first).
 splicing_heatmap <- function(x, groups, title = NULL, row_font = NULL, split_by_gene = FALSE) {
+  if (nrow(x$psi) == 0) {
+    message("nothing to draw: no variants passed the selection (",
+            if (is.null(title)) "no title" else title, ")")
+    return(invisible(NULL))
+  }
   lay <- row_layout(nrow(x$psi), row_font)   # row_layout() is in heatmap.R, which the notebook loads first
   levels_g <- unique(groups$group)
   group_colours <- setNames(c("#0072B2", "#D55E00", "#009E73", "#CC79A7")[seq_along(levels_g)], levels_g)
