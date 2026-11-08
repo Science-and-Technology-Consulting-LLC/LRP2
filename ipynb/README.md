@@ -5,7 +5,7 @@ Graphics and IGV files for the results of an LRP2 run. The notebooks only read t
 ## Environment
 
 ```bash
-conda env create -f ipynb/lrp2.yml
+conda env create -f lrp2.yml
 conda activate lrp2
 python -m ipykernel install --user --name python3
 Rscript -e 'IRkernel::installspec(name = "ir", displayname = "R")'
@@ -23,7 +23,9 @@ cd ipynb && jupyter lab
 | `classification.ipynb` | R | `*.best_ORF_SQANTI_classification.tsv` | bar chart of SQANTI categories (FSM, ISM, NIC, NNC) for transcripts and proteins |
 | `igv_files.ipynb` | Python | `*collapsed_high_confidence_ORF.gtf` and `.bed` | sorted, bgzip-compressed, indexed files in `igv/` |
 
-Each notebook starts with two lines to change for another run: `results_dir` (the folder with the results) and `comparison` (the prefix of the S4 file names, for example `HepG2_vs_K562`).
+## Where the results are
+
+`paths.json` is the one place to set it. It holds the run's results folder (`run_dir`), the `comparison` name (the prefix of the S4 file names, for example `SpA_vs_not_SpA`), the `dataset_name` (the prefix of the S3 files), and the folders inside the run as short relative names (`leafcutter`, `de_gene`, `de_transcript`, `de_orf`, `du_transcript`, `du_orf`, `sqanti_protein`, `protein_classification`, `filter_transcriptome`). Every notebook starts with `loc <- run_locations()` (Python: `loc = run_locations()`) and uses names such as `loc$leafcutter`. To look at another run, such as SpA B27 against not B27, change `comparison` (and `dataset_name`, and `run_dir` if the run is elsewhere) in `paths.json` and nothing else.
 
 ## Functions
 

@@ -1,0 +1,16 @@
+{
+  "run_dir": "../../mounted-data-readonly/lrp2ForkScience_07_11_2026_test-6aef6189a16909b935d867e7/results",
+  "comparison": "SpA_vs_not_SpA",
+  "dataset_name": "SpA_not_SpA",
+  "folders": {
+    "leafcutter": "S4_MULTISAMPLE_ANALYSIS/M1_LEAFCUTTER_LONGREAD/{comparison}",
+    "de_gene": "S4_MULTISAMPLE_ANALYSIS/M2_DIFFERENTIAL_EXPRESSION/{comparison}/differential_gene_expression",
+    "de_transcript": "S4_MULTISAMPLE_ANALYSIS/M2_DIFFERENTIAL_EXPRESSION/{comparison}/differential_transcript_expression",
+    "de_orf": "S4_MULTISAMPLE_ANALYSIS/M2_DIFFERENTIAL_EXPRESSION/{comparison}/differential_ORF_expression",
+    "du_transcript": "S4_MULTISAMPLE_ANALYSIS/M2_DIFFERENTIAL_EXPRESSION/{comparison}/differential_transcript_usage",
+    "du_orf": "S4_MULTISAMPLE_ANALYSIS/M2_DIFFERENTIAL_EXPRESSION/{comparison}/differential_ORF_usage",
+    "sqanti_protein": "S3_PREDICTED_PROTEOME/M3_SQANTI_PROTEIN",
+    "protein_classification": "S3_PREDICTED_PROTEOME/M4_PROTEIN_CLASSIFICATION",
+    "filter_transcriptome": "S2_TRANSCRIPTOME/M3_FILTER_TRANSCRIPTOME"
+  }
+}

@@ -75,7 +75,9 @@ def prepare_bam(path, out_dir):
     return out
 
 
-def check_index(gz_path, region):
-    """Number of records the index returns for a region such as 'chr22:1-50000000'."""
+def check_index(gz_path, region=None):
+    """Number of records the index returns for a region such as 'chr22:1-50000000'.
+    With no region, the first chromosome in the index is used."""
     with pysam.TabixFile(gz_path) as tbx:
+        region = region or tbx.contigs[0]
         return sum(1 for _ in tbx.fetch(region=region))

@@ -41,7 +41,7 @@ Under `results/`: `S1_PACBIO_ISOCALL`, `S2_TRANSCRIPTOME`, `S3_PREDICTED_PROTEOM
 
 ## Credits
 
-LRP2 builds on the original LRP pipeline (Miller et al. 2022), developed in the Sheynkman Lab. We thank everyone who contributed to that work, which laid the foundation for this version.
+LRP2 builds on the original LRP pipeline (Miller et al. 2022), developed in the Sheynkman Lab. Anne Deslattes Mays and Gloria Sheynkman were the co-senior authors of that paper. We thank everyone who contributed to that work, which laid the foundation for this version.
 
 ### Development Team for LRP2
 

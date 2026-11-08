@@ -15,6 +15,7 @@ dependencies:
   # tables and plots
   - r-tidyverse
   - r-data.table
+  - r-jsonlite
   - r-ggrepel
   - r-viridis
   - r-patchwork
