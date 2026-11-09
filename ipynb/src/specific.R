@@ -121,7 +121,8 @@ specific_by_gene <- function(tab) {
 }
 
 # Heatmap of the specific features only: rows grouped by the group they belong to, colour = log2(count + 1).
-specific_heatmap <- function(feat, tab, groups, title = NULL, row_font = NULL) {
+#   novelty (optional): one entry per row of `tab` ("known", "novel", "no ORF"), drawn as a bar at the right
+specific_heatmap <- function(feat, tab, groups, title = NULL, row_font = NULL, novelty = NULL) {
   keep <- which(tab$specific_to != "not specific")
   if (length(keep) == 0) {
     message("nothing to draw: no specific features (", if (is.null(title)) "no title" else title, ")")
@@ -132,7 +133,9 @@ specific_heatmap <- function(feat, tab, groups, title = NULL, row_font = NULL) {
   lay <- row_layout(nrow(m), row_font)   # row_layout() is in heatmap.R
   levels_g <- unique(groups$group)
   top <- HeatmapAnnotation(group = groups$group, col = list(group = group_palette(levels_g)), annotation_name_side = "left")
-  Heatmap(m, name = "log2count", top_annotation = top,
+  side <- if (is.null(novelty)) NULL else
+    rowAnnotation(novelty = factor(novelty[ord], c("known", "novel", "no ORF")), col = list(novelty = novelty_colours))
+  Heatmap(m, name = "log2count", top_annotation = top, right_annotation = side,
           heatmap_legend_param = list(title = "log2(count + 1)"),
           col = colorRamp2(c(0, max(m, 1)), c("white", "#35264C")),
           cluster_rows = FALSE, cluster_columns = TRUE,

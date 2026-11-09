@@ -37,7 +37,8 @@ detected_per_sample <- function(mat) sort(colSums(mat > 0))
 
 # Expression matrix: one row per isoform or ORF, one column per sample in the groups file.
 #   id_col  column that names the rows; label_col (optional) a nicer row name
-read_expression <- function(path, groups, id_col, label_col = NULL, keep = NULL) {
+#   key_col (optional) column whose values are kept in attr(mat, "key"), one per row, to look rows up in other tables
+read_expression <- function(path, groups, id_col, label_col = NULL, keep = NULL, key_col = NULL) {
   tab <- fread(path, sep = "\t", data.table = FALSE)
   if (!is.null(keep)) tab <- tab[tab[[id_col]] %in% keep, , drop = FALSE]   # only these rows (see significant_ids)
   stopifnot(id_col %in% names(tab), all(groups$sample %in% names(tab)))
@@ -48,6 +49,7 @@ read_expression <- function(path, groups, id_col, label_col = NULL, keep = NULL)
     rn <- ifelse(is.na(nm) | nm == "", rn, nm)
   }
   rownames(mat) <- make.unique(as.character(rn))
+  if (!is.null(key_col)) attr(mat, "key") <- as.character(tab[[key_col]])
   mat
 }
 
@@ -59,6 +61,9 @@ significant_ids <- function(results_path, id_col, alpha = 0.05) {
   message(length(ids), " of ", nrow(res), " rows have FDR < ", alpha)
   ids
 }
+
+# Colours of the novelty bar, the same on every figure: known, novel (not a full splice match), no predicted ORF.
+novelty_colours <- c(known = "grey70", novel = "#CC79A7", "no ORF" = "white")
 
 # log2(CPM + 1), then each row centred and scaled, so the colour shows relative expression.
 scale_rows <- function(mat) {
@@ -84,8 +89,11 @@ row_layout <- function(n, row_font = NULL) {
 
 # The heatmap. Rows with no expression in any sample are dropped. Every row has its label, and the
 # heatmap is as tall as the rows need (see row_layout); `row_font` in points overrides the default.
-expression_heatmap <- function(mat, groups, title = NULL, row_font = NULL, mean_bar = FALSE) {
-  mat <- mat[rowSums(mat) > 0, , drop = FALSE]
+#   novelty (optional): one entry per row of `mat` ("known", "novel" or "no ORF"); drawn as a colour bar at the right
+expression_heatmap <- function(mat, groups, title = NULL, row_font = NULL, mean_bar = FALSE, novelty = NULL) {
+  has_expression <- rowSums(mat) > 0
+  mat <- mat[has_expression, , drop = FALSE]
+  if (!is.null(novelty)) novelty <- novelty[has_expression]
   if (nrow(mat) == 0) {
     message("nothing to draw: no rows to show (", if (is.null(title)) "no title" else title, ")")
     return(invisible(NULL))
@@ -96,8 +104,12 @@ expression_heatmap <- function(mat, groups, title = NULL, row_font = NULL, mean_
   group_colours <- setNames(c("#0072B2", "#D55E00", "#009E73", "#CC79A7")[seq_along(levels_g)], levels_g)
   top <- HeatmapAnnotation(group = groups$group, col = list(group = group_colours),
                            annotation_name_side = "left")
-  # optional bar at the right with each row's average CPM, since the colours hide how abundant a row is
-  side <- if (mean_bar) rowAnnotation(mean_CPM = anno_barplot(rowMeans(mat), width = unit(3, "cm"))) else NULL
+  # the optional bars at the right go into one annotation: the novelty bar, then the average-CPM bar
+  parts <- list()
+  if (!is.null(novelty)) parts$novelty <- factor(novelty, c("known", "novel", "no ORF"))
+  if (mean_bar) parts$mean_CPM <- anno_barplot(rowMeans(mat), which = "row", width = unit(3, "cm"))
+  side <- if (length(parts) == 0) NULL else
+    do.call(rowAnnotation, c(parts, list(col = list(novelty = novelty_colours), annotation_name_side = "top")))
   Heatmap(z, name = "zscore", top_annotation = top, right_annotation = side,
           heatmap_legend_param = list(title = "row z-score of log2(CPM+1)"),
           col = colorRamp2(c(-2, 0, 2), c("#2166AC", "white", "#B2182B")),

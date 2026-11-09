@@ -154,16 +154,23 @@ def write_specific_bed(table_path, out_path, level, bed_in=None):
     return n
 
 
-def write_significant_bed(results_path, out_path, level, bed_in, alpha=0.05):
+def write_significant_bed(results_path, out_path, level, bed_in, alpha=0.05, classification=None):
     """Write a BED of the transcript isoforms or ORFs whose FDR in an edgeR results table is below `alpha`.
     level is 'isoforms' (id column isoform_id, BED names `<isoform>_<gene id>`) or 'orfs' (id column orf_base_id,
     BED names `<orf_base_id>|<gene>|<ratio>`). `bed_in` is the BED12 whose lines are kept. Colour: orange where
-    logFC is above 0, blue where it is below 0; the name carries the logFC and FDR. The result is not indexed:
+    logFC is above 0, blue where it is below 0; the name carries the logFC and FDR. With `classification` (the
+    *best_ORF_SQANTI_classification.tsv) the name also carries the SQANTI category: of the isoform for 'isoforms', of
+    its protein for 'orfs' ('novel' or 'known' first, then the category; 'no ORF' when there is none). The result is not indexed:
     pass it to index_annotation. Returns the number of lines written."""
     res = pd.read_csv(results_path, sep="\t", usecols=lambda c: c in ("isoform_id", "orf_base_id", "logFC", "FDR"))
     id_col = "isoform_id" if level == "isoforms" else "orf_base_id"
     res = res[res["FDR"] < alpha].dropna(subset=["FDR", "logFC"])
     info = {r[id_col]: r for r in res.to_dict("records")}
+    cats = {}
+    if classification:
+        cl = pd.read_csv(classification, sep="\t", usecols=["isoform_id", "tx_cat", "pr_splice_cat"])
+        col = "tx_cat" if level == "isoforms" else "pr_splice_cat"
+        cats = dict(zip(cl["isoform_id"], cl[col]))
     n = 0
     with open(out_path, "w") as out, _open(bed_in) as fh:
         for line in fh:
@@ -175,7 +182,11 @@ def write_significant_bed(results_path, out_path, level, bed_in, alpha=0.05):
                 key = re.sub(r"_ENSG[^_]*$", "", key)
             if key in info and len(f) >= 12:
                 r = info[key]
-                f[3] = "%s [logFC %.2f, FDR %.2g]" % (key, r["logFC"], r["FDR"])
+                tag = ""
+                if classification:
+                    cat = cats.get(key)
+                    tag = "no ORF, " if cat is None else ("known, " if cat == "full-splice_match" else "novel %s, " % cat)
+                f[3] = "%s [%slogFC %.2f, FDR %.2g]" % (key, tag, r["logFC"], r["FDR"])
                 f[8] = "213,94,0" if r["logFC"] > 0 else "0,114,178"
                 out.write("\t".join(f) + "\n")
                 n += 1
