@@ -12,7 +12,7 @@ run_locations <- function(config = Sys.getenv("LRP2_PATHS", "paths.json")) {
   cfg <- jsonlite::fromJSON(config)
   options(lrp2_figure_prefix = cfg$comparison)   # saved figures start with the comparison name (see figure_stem)
   fill <- function(x) file.path(cfg$run_dir, gsub("{comparison}", cfg$comparison, x, fixed = TRUE))
-  c(list(comparison = cfg$comparison, dataset_name = cfg$dataset_name), lapply(cfg$folders, fill))
+  c(list(run_dir = cfg$run_dir, comparison = cfg$comparison, dataset_name = cfg$dataset_name), lapply(cfg$folders, fill))
 }
 
 # Where a figure is saved: figures/<comparison>_<name> (no extension). The comparison name is set by run_locations().

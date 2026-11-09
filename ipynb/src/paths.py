@@ -19,6 +19,6 @@ def run_locations(config=None):
     def fill(rel):
         return os.path.join(cfg["run_dir"], rel.replace("{comparison}", cfg["comparison"]))
 
-    loc = {"comparison": cfg["comparison"], "dataset_name": cfg["dataset_name"]}
+    loc = {"run_dir": cfg["run_dir"], "comparison": cfg["comparison"], "dataset_name": cfg["dataset_name"]}
     loc.update({name: fill(rel) for name, rel in cfg["folders"].items()})
     return loc

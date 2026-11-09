@@ -19,10 +19,11 @@ cd ipynb && jupyter lab
 | `volcano.ipynb` | R | `*_DGE_edgeR_results.txt`, `*_DTE_edgeR_results.txt` | volcano plots of genes and transcript isoforms |
 | `heatmaps.ipynb` | R | `*_DTE_edgeR_normalized_CPM_matrix.txt`, `*_DE_ORF_edgeR_normalized_CPM_matrix.txt`, `*.lr_leafcutter.groups_file.txt` | clustered heatmaps by group |
 | `gene_heatmaps.ipynb` | R | the isoform and ORF CPM matrices (as `heatmaps.ipynb`) | one heatmap per chosen gene (default HLA-B, ERAP1, ERAP2) of all its isoforms and ORFs, with an average-CPM bar |
+| `specific_variants.ipynb` | R | `*_DTE_edgeR_raw_CPM_matrix.txt`, `*_DE_ORF_edgeR_raw_CPM_matrix.txt`, `*.subisoform_clusters.txt`, groups file | isoforms, ORFs and splice variants found in one group and not the other: counts, bar chart, heatmaps, tables in `tables/` |
 | `usage.ipynb` | R | `*_DTU_transcript_DRIMSeq_summary.txt`, `*_DU_ORF_DRIMSeq_summary.txt`, groups file | stacked bars of isoform and ORF shares per sample, for the most significant genes |
 | `splicing.ipynb` | R | `*.lr_leafcutter.subisoform_clusters.txt`, `*.ds_cluster_significance.txt`, `*.ds_effect_sizes.txt`, groups file | PSI matrix of splicing variants by sample, with the change between groups |
 | `classification.ipynb` | R | `*.best_ORF_SQANTI_classification.tsv` | bar chart of SQANTI categories (FSM, ISM, NIC, NNC) for transcripts and proteins |
-| `igv_files.ipynb` | Python | `*collapsed_high_confidence_ORF.gtf` and `.bed` | sorted, bgzip-compressed, indexed files in `igv/` |
+| `igv_files.ipynb` | Python | `*collapsed_high_confidence_ORF.gtf` and `.bed` | sorted, bgzip-compressed, indexed files in `igv/`, including coloured tracks of the group-specific features from `specific_variants.ipynb` |
 
 ## Where the results are
 

@@ -118,3 +118,37 @@ def orf_index(gtf_path, hashids_path, de_orf_path=None):
         de = pd.read_csv(de_orf_path, sep="\t", usecols=["orf_base_id", "logFC", "FDR"])
         idx = idx.merge(de, on="orf_base_id", how="left")
     return idx.sort_values(["gene", "start"]).reset_index(drop=True)
+
+
+def write_specific_bed(table_path, out_path, level, bed_in=None):
+    """Write a BED of the features marked specific to a group in a table made by specific.R,
+    coloured by group (the table's `colour` column). level is 'isoforms' or 'orfs' (then `bed_in` is the
+    BED12 of the transcripts or ORFs, whose lines are kept) or 'variants' (one line per intron of each
+    splicing variant, from the table itself). The result is not indexed: pass it to index_annotation.
+    Returns the number of lines written."""
+    tab = pd.read_csv(table_path, sep="\t", dtype=str, keep_default_na=False)
+    tab = tab[tab["specific_to"] != "not specific"]
+    n = 0
+    with open(out_path, "w") as out:
+        if level == "variants":
+            for r in tab.to_dict("records"):
+                for s, e in zip(r["intron_starts"].split(","), r["intron_ends"].split(",")):
+                    out.write("\t".join([r["chr"], s, e, r["gene"] + " [" + r["specific_to"] + "]", "0", r["strand"],
+                                         s, e, r["colour"]]) + "\n")
+                    n += 1
+        else:
+            info = {r["id"]: r for r in tab.to_dict("records")}
+            with _open(bed_in) as fh:
+                for line in fh:
+                    if line.startswith(("track", "browser", "#")):
+                        continue
+                    f = line.rstrip("\n").split("\t")
+                    key = f[3].split("|")[0]
+                    if level == "isoforms":
+                        key = re.sub(r"_ENSG[^_]*$", "", key)   # the BED name is <isoform>_<gene id>
+                    if key in info and len(f) >= 12:
+                        f[3] = key + " [" + info[key]["specific_to"] + "]"
+                        f[8] = info[key]["colour"]
+                        out.write("\t".join(f) + "\n")
+                        n += 1
+    return n
