@@ -59,7 +59,7 @@ cd ipynb && jupyter lab
 | `gene_heatmaps.ipynb` | R | one heatmap per chosen gene (default HLA-B, ERAP1, ERAP2) of all its isoforms and ORFs |
 | `specific_variants.ipynb` | R | isoforms, ORFs and splice variants found in one group and not the other: counts, heatmaps, tables in `tables/` |
 | `dominant_orf.ipynb` | R | the dominant ORF (protein form) of each gene, its share, how many transcripts collapse into it, and whether it switches between groups |
-| `usage.ipynb` | R | stacked bars of isoform and ORF shares per sample (DRIMSeq) |
+| `usage.ipynb` | R | stacked bars of isoform and ORF shares per sample, for the genes with a significant change in use (DRIMSeq) |
 | `splicing.ipynb` | R | volcano of splicing variants (change in PSI against cluster adjusted p) and the PSI matrix by sample, with the change between groups |
 | `classification.ipynb` | R | SQANTI categories (FSM, ISM, NIC, NNC) for transcripts and proteins |
 | `igv_files.ipynb` | Python | sorted, bgzip-compressed, indexed files in `igv/`, including tracks of the group-specific and significant features |

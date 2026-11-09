@@ -81,10 +81,16 @@ usage_plot <- function(usage, groups, gene) {
           legend.key.size = unit(0.35, "cm"), legend.text = element_text(size = 8))
 }
 
-# The n genes with the smallest p values, one above the other (ncol = 1 keeps each plot wide enough to
-# read the sample names and the group labels). They are the smallest p values, not necessarily significant:
-# the adjusted p is in each title.
-usage_panel <- function(usage, groups, n = 4, ncol = 1) {
-  genes <- head(gene_usage_table(usage)$gene, n)
-  wrap_plots(lapply(genes, function(g) usage_plot(usage, groups, g)), ncol = ncol)
+# Only genes DRIMSeq found different between the groups (adjusted p below `alpha`), one above the other (ncol = 1
+# keeps each plot wide enough to read the sample names and the group labels). If more than n pass, the n with the
+# smallest adjusted p are drawn and the rest are reported. Returns NULL, with a message, when no gene passes.
+usage_panel <- function(usage, groups, alpha = 0.05, n = 4, ncol = 1) {
+  tab <- gene_usage_table(usage)
+  sig <- tab$gene[!is.na(tab$adj_p) & tab$adj_p < alpha]
+  if (length(sig) == 0) {
+    message("no gene has an adjusted p below ", alpha, ": nothing to draw")
+    return(invisible(NULL))
+  }
+  message(length(sig), " genes have an adjusted p below ", alpha, if (length(sig) > n) paste0("; drawing the ", n, " with the smallest"))
+  wrap_plots(lapply(head(sig, n), function(g) usage_plot(usage, groups, g)), ncol = ncol)
 }
