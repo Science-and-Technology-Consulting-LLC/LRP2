@@ -93,7 +93,8 @@ specific_barplot <- function(summary, title = NULL) {
     scale_fill_manual(values = cols, guide = "none") +
     scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
     labs(x = NULL, y = "features", title = title) +
-    theme_bw(base_size = 12) + theme(panel.grid = element_blank())
+    theme_bw(base_size = 12) +
+    theme(panel.grid = element_blank(), axis.text.x = element_text(angle = 45, hjust = 1))
 }
 
 # The specific features of the chosen genes, all levels together.

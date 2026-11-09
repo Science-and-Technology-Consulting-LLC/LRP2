@@ -8,6 +8,7 @@ Nextflow pipeline from PacBio Iso-Seq reads to filtered transcripts, a predicted
 - `modules/<package>/<name>.nf`: one process per file, named for the process.
 - `container/<package>/`: the image for that package (Dockerfile and context). Reference files and licences are inside their images.
 - `nextflow.config`: settings, resources and the pinned image tag. `conf/` holds the GENCODE reference table and where results are published.
+- `ipynb/`: Jupyter notebooks that draw the results and prepare IGV files (see Viewing the results).
 - `docs/`: Sphinx documentation (`make -C docs html`).
 
 Images are built by `.github/workflows/docker-publish.yml` and tagged with the commit SHA of the build. Set `--image_tag` to that SHA; never use `latest`.
@@ -38,6 +39,32 @@ Skip S1 with `--S2_custom_gtf` and `--S2_custom_counts`. Run S4 alone with `--S4
 ## Output
 
 Under `results/`: `S1_PACBIO_ISOCALL`, `S2_TRANSCRIPTOME`, `S3_PREDICTED_PROTEOME`, `S4_MULTISAMPLE_ANALYSIS`, and `pipeline_info` (reports, trace, software versions).
+
+## Viewing the results
+
+The notebooks in `ipynb/` read the S3 and S4 files the pipeline wrote and do not change them. They run in an R or Python Jupyter session (on Lifebit, an interactive session with the results mounted read-only).
+
+```bash
+conda env create -f lrp2.yml
+conda activate lrp2
+python -m ipykernel install --user --name python3
+Rscript -e 'IRkernel::installspec(name = "ir", displayname = "R")'
+cd ipynb && jupyter lab
+```
+
+| Notebook | Kernel | Makes |
+|---|---|---|
+| `volcano.ipynb` | R | volcano plots of genes, transcript isoforms and ORFs |
+| `heatmaps.ipynb` | R | clustered heatmaps of the significant genes, isoforms and ORFs, by group |
+| `gene_heatmaps.ipynb` | R | one heatmap per chosen gene (default HLA-B, ERAP1, ERAP2) of all its isoforms and ORFs |
+| `specific_variants.ipynb` | R | isoforms, ORFs and splice variants found in one group and not the other: counts, heatmaps, tables in `tables/` |
+| `dominant_orf.ipynb` | R | the dominant ORF (protein form) of each gene, its share, how many transcripts collapse into it, and whether it switches between groups |
+| `usage.ipynb` | R | stacked bars of isoform and ORF shares per sample (DRIMSeq) |
+| `splicing.ipynb` | R | PSI matrix of splicing variants by sample, with the change between groups |
+| `classification.ipynb` | R | SQANTI categories (FSM, ISM, NIC, NNC) for transcripts and proteins |
+| `igv_files.ipynb` | Python | sorted, bgzip-compressed, indexed files in `igv/`, including tracks of the group-specific and significant features |
+
+`ipynb/paths.json` is the one place that says where a run is: `run_dir`, the `comparison` name (prefix of the S4 file names), the `dataset_name` (prefix of the S3 file names) and the folders inside the run. To look at another run, change these and nothing else. Every figure is saved in `ipynb/figures/` as PNG and PDF, named with the comparison (`<comparison>_<name>.png`), and tables go to `ipynb/tables/`. The code that does the work is in `ipynb/src/`; each notebook cell only calls it.
 
 ## Credits
 

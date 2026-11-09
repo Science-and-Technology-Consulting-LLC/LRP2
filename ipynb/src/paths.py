@@ -13,6 +13,8 @@ import os
 def run_locations(config=None):
     """Return a dict: comparison, dataset_name, and the full path of every folder in `folders`."""
     config = config or os.environ.get("LRP2_PATHS", "paths.json")
+    if not os.path.exists(config):
+        raise FileNotFoundError(f"cannot find '{config}' in {os.getcwd()}. Run the notebook from the ipynb folder, or set LRP2_PATHS to the full path of paths.json.")
     with open(config) as fh:
         cfg = json.load(fh)
 

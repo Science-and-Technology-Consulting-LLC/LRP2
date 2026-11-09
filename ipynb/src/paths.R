@@ -9,6 +9,7 @@
 
 # Returns a list: comparison, dataset_name, and the full path of every folder in `folders`.
 run_locations <- function(config = Sys.getenv("LRP2_PATHS", "paths.json")) {
+  if (!file.exists(config)) stop("cannot find '", config, "' in ", getwd(), ". Run the notebook from the ipynb folder, or set LRP2_PATHS to the full path of paths.json.", call. = FALSE)
   cfg <- jsonlite::fromJSON(config)
   options(lrp2_figure_prefix = cfg$comparison)   # saved figures start with the comparison name (see figure_stem)
   fill <- function(x) file.path(cfg$run_dir, gsub("{comparison}", cfg$comparison, x, fixed = TRUE))
