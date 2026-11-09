@@ -37,8 +37,9 @@ detected_per_sample <- function(mat) sort(colSums(mat > 0))
 
 # Expression matrix: one row per isoform or ORF, one column per sample in the groups file.
 #   id_col  column that names the rows; label_col (optional) a nicer row name
-read_expression <- function(path, groups, id_col, label_col = NULL) {
+read_expression <- function(path, groups, id_col, label_col = NULL, keep = NULL) {
   tab <- fread(path, sep = "\t", data.table = FALSE)
+  if (!is.null(keep)) tab <- tab[tab[[id_col]] %in% keep, , drop = FALSE]   # only these rows (see significant_ids)
   stopifnot(id_col %in% names(tab), all(groups$sample %in% names(tab)))
   mat <- as.matrix(tab[, groups$sample, drop = FALSE])
   rn <- tab[[id_col]]
@@ -48,6 +49,15 @@ read_expression <- function(path, groups, id_col, label_col = NULL) {
   }
   rownames(mat) <- make.unique(as.character(rn))
   mat
+}
+
+# The ids of the rows edgeR found significant: FDR below `alpha` in a *_edgeR_results.txt table.
+# alpha = 1 keeps every tested row. `id_col` is the column that names the rows in the matching expression matrix.
+significant_ids <- function(results_path, id_col, alpha = 0.05) {
+  res <- fread(results_path, sep = "\t", data.table = FALSE)
+  ids <- res[[id_col]][!is.na(res$FDR) & res$FDR < alpha]
+  message(length(ids), " of ", nrow(res), " rows have FDR < ", alpha)
+  ids
 }
 
 # log2(CPM + 1), then each row centred and scaled, so the colour shows relative expression.
@@ -76,6 +86,10 @@ row_layout <- function(n, row_font = NULL) {
 # heatmap is as tall as the rows need (see row_layout); `row_font` in points overrides the default.
 expression_heatmap <- function(mat, groups, title = NULL, row_font = NULL, mean_bar = FALSE) {
   mat <- mat[rowSums(mat) > 0, , drop = FALSE]
+  if (nrow(mat) == 0) {
+    message("nothing to draw: no rows to show (", if (is.null(title)) "no title" else title, ")")
+    return(invisible(NULL))
+  }
   z <- scale_rows(mat)
   lay <- row_layout(nrow(z), row_font)
   levels_g <- unique(groups$group)
