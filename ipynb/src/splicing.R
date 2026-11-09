@@ -72,6 +72,7 @@ select_genes <- function(x, genes) {
   once <- genes[hits & !vapply(genes, function(g) any(in_gene(g) & multi), TRUE)]
   if (length(once) > 0) message("only in clusters with a single variant (nothing to compare): ", paste(once, collapse = ", "))
   out <- list(psi = x$psi[keep, , drop = FALSE], info = x$info[keep, , drop = FALSE])
+  if (nrow(out$psi) == 0) return(out)   # none of the genes has a variant to compare
   o <- order(out$info$gene, out$info$cluster, rownames(out$psi))
   list(psi = out$psi[o, , drop = FALSE], info = out$info[o, , drop = FALSE])
 }

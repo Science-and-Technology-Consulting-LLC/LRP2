@@ -22,6 +22,16 @@ drop_samples <- function(groups, samples) {
   groups[!groups$sample %in% samples, , drop = FALSE]
 }
 
+# One column of an expression table, in the same row order as read_expression() gives (used to find each row's gene).
+table_column <- function(path, col) fread(path, sep = "\t", select = col, data.table = FALSE)[[1]]
+
+# The rows of `mat` that belong to one gene; `genes` has one entry per row of `mat`.
+gene_rows <- function(mat, genes, gene) {
+  keep <- !is.na(genes) & genes == gene
+  if (!any(keep)) message(gene, ": no isoforms in this table")
+  mat[keep, , drop = FALSE]
+}
+
 # Number of isoforms or ORFs with any expression in each sample, lowest first: a very low sample is a coverage outlier.
 detected_per_sample <- function(mat) sort(colSums(mat > 0))
 
@@ -64,7 +74,7 @@ row_layout <- function(n, row_font = NULL) {
 
 # The heatmap. Rows with no expression in any sample are dropped. Every row has its label, and the
 # heatmap is as tall as the rows need (see row_layout); `row_font` in points overrides the default.
-expression_heatmap <- function(mat, groups, title = NULL, row_font = NULL) {
+expression_heatmap <- function(mat, groups, title = NULL, row_font = NULL, mean_bar = FALSE) {
   mat <- mat[rowSums(mat) > 0, , drop = FALSE]
   z <- scale_rows(mat)
   lay <- row_layout(nrow(z), row_font)
@@ -72,18 +82,20 @@ expression_heatmap <- function(mat, groups, title = NULL, row_font = NULL) {
   group_colours <- setNames(c("#0072B2", "#D55E00", "#009E73", "#CC79A7")[seq_along(levels_g)], levels_g)
   top <- HeatmapAnnotation(group = groups$group, col = list(group = group_colours),
                            annotation_name_side = "left")
-  Heatmap(z, name = "zscore", top_annotation = top,
+  # optional bar at the right with each row's average CPM, since the colours hide how abundant a row is
+  side <- if (mean_bar) rowAnnotation(mean_CPM = anno_barplot(rowMeans(mat), width = unit(3, "cm"))) else NULL
+  Heatmap(z, name = "zscore", top_annotation = top, right_annotation = side,
           heatmap_legend_param = list(title = "row z-score of log2(CPM+1)"),
           col = colorRamp2(c(-2, 0, 2), c("#2166AC", "white", "#B2182B")),
           cluster_rows = nrow(z) > 1, cluster_columns = TRUE,
           column_split = if (length(levels_g) > 1) factor(groups$group, levels = levels_g) else NULL,
-          show_row_names = TRUE,
+          show_row_names = TRUE, row_names_side = if (mean_bar) "left" else "right",
           row_names_gp = grid::gpar(fontsize = lay$font),
           height = unit(lay$body_in, "in"),
           column_title = title)
 }
 
-# Draw the heatmap to figures/<name>.png and figures/<name>.pdf, then show the PNG in the notebook.
+# Draw the heatmap to figures/<comparison>_<name>.png and .pdf, then show the PNG in the notebook.
 # (Drawing straight onto the notebook's own plot device fails for ComplexHeatmap, so it goes to files first.)
 show_heatmap <- function(ht, name, width = 10, height = NULL, dir = "figures") {
   if (is.null(ht)) return(invisible(NULL))   # nothing was drawn (no rows passed the selection)
@@ -93,8 +105,7 @@ show_heatmap <- function(ht, name, width = 10, height = NULL, dir = "figures") {
     height <- lay$body_in + 3.5
   }
   res <- max(50, min(150, 30000 / height))   # 150 dpi, or less for a very tall figure to stay under 30000 pixels
-  dir.create(dir, showWarnings = FALSE, recursive = TRUE)
-  stem <- file.path(dir, name)
+  stem <- figure_stem(name, dir)   # figures/<comparison>_<name>; figure_stem() is in paths.R
   png(paste0(stem, ".png"), width = width, height = height, units = "in", res = res)
   draw(ht); invisible(dev.off())
   pdf(paste0(stem, ".pdf"), width = width, height = height)

@@ -8,6 +8,7 @@ import gzip
 import os
 import re
 
+import pandas as pd
 import pysam
 
 
@@ -81,3 +82,39 @@ def check_index(gz_path, region=None):
     with pysam.TabixFile(gz_path) as tbx:
         region = region or tbx.contigs[0]
         return sum(1 for _ in tbx.fetch(region=region))
+
+
+def orf_index(gtf_path, hashids_path, de_orf_path=None):
+    """One row per predicted ORF, to look up what to find in IGV. From the ORF GTF: gene, position
+    (`locus` can be pasted into IGV's search box), strand, number of coding exons, coding length and the
+    ORF ratio. From the hash-ids table: every transcript isoform that gives this ORF. If `de_orf_path`
+    (the *_DE_ORF_edgeR_results.txt table) is given, logFC and FDR are added."""
+    rows, cds = {}, {}
+    with _open(gtf_path) as fh:
+        for line in fh:
+            if line.startswith("#"):
+                continue
+            f = line.rstrip("\n").split("\t")
+            if len(f) < 9 or f[2] not in ("transcript", "CDS"):
+                continue
+            attr = {k: a or b for k, a, b in re.findall(r'(\w+) (?:"([^"]*)"|([^;\s]+))', f[8])}   # values with or without quotes
+            orf = attr["orf_base_id"]
+            if f[2] == "transcript":
+                rows[orf] = {"orf_base_id": orf, "gene": attr.get("reference_gene_name"),
+                             "gene_id": attr.get("gene_id"), "chrom": f[0], "start": int(f[3]),
+                             "end": int(f[4]), "strand": f[6],
+                             "orf_ratio": float(attr.get("avg_orf_ratio", "nan"))}
+            else:
+                n, bp = cds.get(orf, (0, 0))
+                cds[orf] = (n + 1, bp + int(f[4]) - int(f[3]) + 1)
+    idx = pd.DataFrame(rows.values())
+    idx["coding_exons"] = idx["orf_base_id"].map(lambda o: cds.get(o, (0, 0))[0])
+    idx["coding_bp"] = idx["orf_base_id"].map(lambda o: cds.get(o, (0, 0))[1])
+    idx["locus"] = idx["chrom"] + ":" + idx["start"].astype(str) + "-" + idx["end"].astype(str)
+    iso = pd.read_csv(hashids_path, sep="\t", usecols=["orf_base_id", "orf_all_isoform_id"])
+    iso["n_isoforms"] = iso["orf_all_isoform_id"].str.count(",") + 1
+    idx = idx.merge(iso, on="orf_base_id", how="left")
+    if de_orf_path:
+        de = pd.read_csv(de_orf_path, sep="\t", usecols=["orf_base_id", "logFC", "FDR"])
+        idx = idx.merge(de, on="orf_base_id", how="left")
+    return idx.sort_values(["gene", "start"]).reset_index(drop=True)
