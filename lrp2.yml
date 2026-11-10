@@ -24,6 +24,7 @@ dependencies:
   - r-pheatmap
   - bioconductor-complexheatmap
   - r-circlize
+  # WGCNA (ipynb/wgcna_isoforms.ipynb) is not on conda: the notebook installs it from CRAN and Bioconductor the first time it runs
   # reading and writing GTF and BED
   - bioconductor-rtracklayer
   - bioconductor-genomicranges
