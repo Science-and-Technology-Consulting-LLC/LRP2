@@ -55,6 +55,8 @@ cd ipynb && jupyter lab
 | Notebook | Kernel | Makes |
 |---|---|---|
 | `volcano.ipynb` | R | volcano plots of genes, transcript isoforms and ORFs; isoform and ORF points are coloured known or novel (SQANTI) |
+| `review.ipynb` | R | one-page review for a PI: counts from the edgeR tables, then the figures and tables the other notebooks saved, each with a note on how to read it, what the analysis does not show, and cited methods. Run it last |
+| `wgcna_orfs.ipynb` | R | the same WGCNA on predicted ORFs (protein forms) instead of isoforms |
 | `wgcna_isoforms.ipynb` | R | WGCNA: modules of transcript isoforms that move together, tested against the group, with known or novel counts per module (installs WGCNA on first run) |
 | `heatmaps.ipynb` | R | clustered heatmaps of the significant genes, isoforms and ORFs, by group; isoforms and ORFs carry a known/novel colour bar |
 | `gene_heatmaps.ipynb` | R | one heatmap per chosen gene (default HLA-B, ERAP1, ERAP2) of all its isoforms and ORFs |
